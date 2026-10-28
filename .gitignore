@@ -1,0 +1,24 @@
+## Visual Studio / .NET Build Artifacts
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Logs and Temp files
+*.log
+*.tmp
+crash.log
+
+## OS Generated
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+## IDE Settings
+.vs/
+.idea/
+.vscode/

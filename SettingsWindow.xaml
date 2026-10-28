@@ -1,0 +1,1000 @@
+<Window x:Class="DynamicIsland.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Dynamic Island - Cài đặt"
+        Width="840" Height="600"
+        MinWidth="760" MinHeight="520"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        Loaded="Window_Loaded">
+
+    <Window.Resources>
+        <!-- Toggle Switch CheckBox Style -->
+        <Style x:Key="ToggleSwitchStyle" TargetType="CheckBox">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Grid Background="Transparent">
+                            <Border x:Name="SwitchTrack" Width="46" Height="26" CornerRadius="13" Background="#2B2B36" BorderBrush="#3A3A48" BorderThickness="1">
+                                <Border.Triggers>
+                                    <!-- Transitions -->
+                                </Border.Triggers>
+                                <Ellipse x:Name="SwitchThumb" Width="18" Height="18" Fill="#FFFFFF" HorizontalAlignment="Left" Margin="4,0,0,0">
+                                    <Ellipse.Effect>
+                                        <DropShadowEffect BlurRadius="4" ShadowDepth="1" Direction="270" Color="#000000" Opacity="0.3"/>
+                                    </Ellipse.Effect>
+                                </Ellipse>
+                            </Border>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="SwitchTrack" Property="Background" Value="#545458"/>
+                                <Setter TargetName="SwitchTrack" Property="BorderBrush" Value="#636366"/>
+                                <Setter TargetName="SwitchThumb" Property="HorizontalAlignment" Value="Right"/>
+                                <Setter TargetName="SwitchThumb" Property="Margin" Value="0,0,4,0"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="SwitchTrack" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Sidebar Tab Button Style -->
+        <Style x:Key="NavTabButtonStyle" TargetType="RadioButton">
+            <Setter Property="Height" Value="42"/>
+            <Setter Property="Margin" Value="0,3,0,3"/>
+            <Setter Property="Foreground" Value="#A0A0B0"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="border" Background="Transparent" CornerRadius="8" Padding="12,0,12,0">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#1A1A24"/>
+                                <Setter Property="Foreground" Value="#E2E2E8"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#252535"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Modern Action Button Style -->
+        <Style x:Key="ModernButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#252532"/>
+            <Setter Property="Foreground" Value="#F0F0F5"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#383848"/>
+            <Setter Property="Padding" Value="14,8,14,8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#323242"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="#4B4B60"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#20202A"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Primary Neutral Button -->
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource ModernButtonStyle}">
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="Foreground" Value="#000000"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="7" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#E5E5EA"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#D1D1D6"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Modern Slider Style -->
+        <Style x:Key="ModernSliderStyle" TargetType="Slider">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <!-- Card Container Style -->
+        <Style x:Key="SettingCardBorder" TargetType="Border">
+            <Setter Property="Background" Value="#17171F"/>
+            <Setter Property="BorderBrush" Value="#262634"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="16,14,16,14"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+        </Style>
+
+        <!-- Dark ComboBox Styling -->
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="#252535"/>
+            <Setter Property="Foreground" Value="#F0F0F5"/>
+            <Setter Property="BorderBrush" Value="#383848"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,4,8,4"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="#181822"/>
+            <Setter Property="Foreground" Value="#EDEDF5"/>
+            <Setter Property="Padding" Value="8,6,8,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <!-- Modern Dark TextBox Styling -->
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#1C1C26"/>
+            <Setter Property="Foreground" Value="#F0F0F8"/>
+            <Setter Property="CaretBrush" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#323244"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,5,8,5"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="False" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="#8E8E93"/>
+                                <Setter TargetName="border" Property="Background" Value="#222226"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <!-- Main Container Window with Outer Glow/Shadow -->
+    <Border Margin="12" CornerRadius="16" Background="#111116" BorderBrush="#252532" BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="25" ShadowDepth="6" Direction="270" Color="#000000" Opacity="0.7"/>
+        </Border.Effect>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="48"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Custom Modern Titlebar -->
+            <Grid Grid.Row="0" Background="#16161D" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- App Icon & Title -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+                    <Border Width="26" Height="26" CornerRadius="13" Background="#000000" BorderBrush="#3A3A3C" BorderThickness="1.5" Margin="0,0,10,0">
+                        <Border Width="10" Height="10" CornerRadius="5" Background="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="Dynamic Island" Foreground="#FFFFFF" FontWeight="Bold" FontSize="14" VerticalAlignment="Center"/>
+                    <Border Background="#252528" CornerRadius="4" Padding="6,2,6,2" Margin="10,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="Cài đặt hệ thống" Foreground="#AEAEB2" FontSize="11" FontWeight="SemiBold"/>
+                    </Border>
+                </StackPanel>
+
+                <!-- Minimize & Close Buttons -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
+                    <Button Width="34" Height="30" Background="Transparent" BorderThickness="0" Foreground="#A0A0B0" Cursor="Hand" Click="BtnMinimize_Click">
+                        <TextBlock Text="—" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Button>
+                    <Button Width="34" Height="30" Background="Transparent" BorderThickness="0" Foreground="#A0A0B0" Cursor="Hand" Click="BtnClose_Click">
+                        <TextBlock Text="✕" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <!-- Body Area -->
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="220"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Left Sidebar Navigation -->
+                <Border Grid.Column="0" Background="#13131A" BorderBrush="#20202C" BorderThickness="0,0,1,0" Padding="14,16,14,16">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Nav List -->
+                        <StackPanel Grid.Row="0">
+                            <TextBlock Text="DANH MỤC" Foreground="#6A6A7D" FontSize="10" FontWeight="Bold" Margin="8,0,0,10"/>
+
+                            <RadioButton x:Name="NavDisplay" Style="{StaticResource NavTabButtonStyle}" IsChecked="True" Checked="Nav_Checked">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="🖥️" FontSize="13" Margin="0,0,10,0"/>
+                                    <TextBlock Text="Màn hình &amp; Vị trí"/>
+                                </StackPanel>
+                            </RadioButton>
+
+                            <RadioButton x:Name="NavAppearance" Style="{StaticResource NavTabButtonStyle}" Checked="Nav_Checked">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="🎨" FontSize="13" Margin="0,0,10,0"/>
+                                    <TextBlock Text="Giao diện &amp; Kích thước"/>
+                                </StackPanel>
+                            </RadioButton>
+
+                            <RadioButton x:Name="NavFeatures" Style="{StaticResource NavTabButtonStyle}" Checked="Nav_Checked">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="⚡" FontSize="13" Margin="0,0,10,0"/>
+                                    <TextBlock Text="Tính năng &amp; Widget"/>
+                                </StackPanel>
+                            </RadioButton>
+
+                            <RadioButton x:Name="NavLocalSend" Style="{StaticResource NavTabButtonStyle}" Checked="Nav_Checked">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="📲" FontSize="13" Margin="0,0,10,0"/>
+                                    <TextBlock Text="Truyền file sang ĐT"/>
+                                </StackPanel>
+                            </RadioButton>
+
+                            <RadioButton x:Name="NavSystem" Style="{StaticResource NavTabButtonStyle}" Checked="Nav_Checked">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="⚙️" FontSize="13" Margin="0,0,10,0"/>
+                                    <TextBlock Text="Hệ thống &amp; Phím tắt"/>
+                                </StackPanel>
+                            </RadioButton>
+                        </StackPanel>
+
+                        <!-- Bottom Buttons -->
+                        <StackPanel Grid.Row="1">
+                            <Button Style="{StaticResource ModernButtonStyle}" Margin="0,0,0,8" Click="BtnResetDefaults_Click">
+                                <TextBlock Text="↺ Khôi phục mặc định" FontSize="11"/>
+                            </Button>
+                            <Button Style="{StaticResource PrimaryButtonStyle}" Click="BtnSaveClose_Click">
+                                <TextBlock Text="✓ Lưu &amp; Đóng" FontSize="12"/>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Right Content Area -->
+                <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="24,20,24,20">
+                    <Grid>
+                        <!-- ================= TAB 1: MÀN HÌNH & VỊ TRÍ ================= -->
+                        <StackPanel x:Name="PanelDisplay" Visibility="Visible">
+                            <TextBlock Text="Màn hình &amp; Vị trí hiển thị" Foreground="#FFFFFF" FontSize="18" FontWeight="Bold" Margin="0,0,0,4"/>
+                            <TextBlock Text="Tùy chỉnh vị trí của Dynamic Island trên các màn hình máy tính." Foreground="#858595" FontSize="12" Margin="0,0,0,18"/>
+
+                            <!-- Card 1: Chọn màn hình -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Màn hình hiển thị" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                        <TextBlock Text="Chọn màn hình mà bạn muốn Dynamic Island hiển thị." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <ComboBox x:Name="CmbMonitors" Grid.Column="1" Width="200" Height="30" SelectionChanged="CmbMonitors_SelectionChanged"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Card 2: Khoảng cách từ đỉnh -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid Grid.Row="0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Khoảng cách từ đỉnh màn hình (Top Offset)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                            <TextBlock Text="Điều chỉnh khoảng cách từ mép trên cùng của màn hình xuống Island." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                        <Border Grid.Column="1" Background="#232332" CornerRadius="5" Padding="8,3,8,3">
+                                            <TextBlock x:Name="LblTopOffset" Text="3 px" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12"/>
+                                        </Border>
+                                    </Grid>
+                                    <Slider x:Name="SliderTopOffset" Grid.Row="1" Margin="0,14,0,0" Minimum="0" Maximum="60" Value="3" Style="{StaticResource ModernSliderStyle}" ValueChanged="SliderTopOffset_ValueChanged"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Card 3: Độ lệch ngang (Horizontal Offset) -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid Grid.Row="0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Độ lệch theo phương ngang (Horizontal Offset)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                            <TextBlock Text="Mặc định là 0 px (Chính giữa màn hình). Có thể chỉnh sang trái hoặc phải." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                        <Border Grid.Column="1" Background="#232332" CornerRadius="5" Padding="8,3,8,3">
+                                            <TextBlock x:Name="LblHorizontalOffset" Text="0 px" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12"/>
+                                        </Border>
+                                    </Grid>
+                                    <Slider x:Name="SliderHorizontalOffset" Grid.Row="1" Margin="0,14,0,10" Minimum="-600" Maximum="600" Value="0" Style="{StaticResource ModernSliderStyle}" ValueChanged="SliderHorizontalOffset_ValueChanged"/>
+                                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button Style="{StaticResource ModernButtonStyle}" Padding="10,4,10,4" Margin="0,0,6,0" Click="BtnQuickOffsetLeft_Click">
+                                            <TextBlock Text="Lệch trái (-180px)" FontSize="10"/>
+                                        </Button>
+                                        <Button Style="{StaticResource ModernButtonStyle}" Padding="10,4,10,4" Margin="0,0,6,0" Click="BtnQuickOffsetCenter_Click">
+                                            <TextBlock Text="🎯 Căn giữa (0px)" FontSize="10"/>
+                                        </Button>
+                                        <Button Style="{StaticResource ModernButtonStyle}" Padding="10,4,10,4" Click="BtnQuickOffsetRight_Click">
+                                            <TextBlock Text="Lệch phải (+180px)" FontSize="10"/>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- Card 4: Luôn hiển thị trên cùng -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Luôn hiển thị trên cùng (Always on Top)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                        <TextBlock Text="Giữ Dynamic Island luôn nổi trên mọi cửa sổ và ứng dụng đang mở." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkAlwaysOnTop" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Click="ChkAlwaysOnTop_Click"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Card 5: Tự động ẩn (Auto-Hide) -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid Grid.Row="0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Tự động ẩn (Auto-Hide)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                            <TextBlock Text="Ẩn viên thuốc vào cạnh trên màn hình. Rê chuột lên viền trên cùng để hiện lại." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="ChkAutoHide" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="False" Click="ChkAutoHide_Click"/>
+                                    </Grid>
+                                    <Grid Grid.Row="1" Margin="0,14,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,14,0">
+                                            <TextBlock Text="Thời gian chờ trước khi ẩn:" Foreground="#A0A0B2" FontSize="11" Margin="0,0,0,4"/>
+                                            <Slider x:Name="SliderAutoHideDelay" Minimum="0.5" Maximum="4.0" Value="1.5" SmallChange="0.5" LargeChange="0.5" Style="{StaticResource ModernSliderStyle}" ValueChanged="SliderAutoHideDelay_ValueChanged"/>
+                                        </StackPanel>
+                                        <Border Grid.Column="1" Background="#232332" CornerRadius="5" Padding="8,3,8,3" VerticalAlignment="Center">
+                                            <TextBlock x:Name="LblAutoHideDelay" Text="1.5 giây" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12"/>
+                                        </Border>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- ================= TAB 2: GIAO DIỆN & KÍCH THƯỚC ================= -->
+                        <StackPanel x:Name="PanelAppearance" Visibility="Collapsed">
+                            <TextBlock Text="Giao diện &amp; Kích thước" Foreground="#FFFFFF" FontSize="18" FontWeight="Bold" Margin="0,0,0,4"/>
+                            <TextBlock Text="Tùy biến hình dáng, độ bo tròn, màu sắc và hiệu ứng thị giác." Foreground="#858595" FontSize="12" Margin="0,0,0,18"/>
+
+                            <!-- Card 1: Kích thước Idle -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid Grid.Row="0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Độ rộng ở chế độ chờ (Idle Width)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                            <TextBlock Text="Độ rộng viên thuốc mặc định khi không mở rộng." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                        <Border Grid.Column="1" Background="#232332" CornerRadius="5" Padding="8,3,8,3">
+                                            <TextBlock x:Name="LblIdleWidth" Text="190 px" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12"/>
+                                        </Border>
+                                    </Grid>
+                                    <Slider x:Name="SliderIdleWidth" Grid.Row="1" Margin="0,14,0,0" Minimum="150" Maximum="280" Value="190" Style="{StaticResource ModernSliderStyle}" ValueChanged="SliderIdleWidth_ValueChanged"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Card 2: Kích thước Expanded -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid Grid.Row="0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Độ rộng khi mở rộng (Expanded Width)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                            <TextBlock Text="Độ rộng của Dynamic Island khi bấm mở chi tiết trình phát nhạc." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                        <Border Grid.Column="1" Background="#232332" CornerRadius="5" Padding="8,3,8,3">
+                                            <TextBlock x:Name="LblExpandedWidth" Text="400 px" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12"/>
+                                        </Border>
+                                    </Grid>
+                                    <Slider x:Name="SliderExpandedWidth" Grid.Row="1" Margin="0,14,0,0" Minimum="340" Maximum="500" Value="400" Style="{StaticResource ModernSliderStyle}" ValueChanged="SliderExpandedWidth_ValueChanged"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Card 3: Chủ đề màu sắc nền -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <StackPanel Grid.Row="0">
+                                        <TextBlock Text="Chủ đề màu nền (Theme Background)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                        <TextBlock Text="Chọn tông màu sang trọng cho Dynamic Island." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <WrapPanel Grid.Row="1" Margin="0,12,0,0">
+                                        <Button Style="{StaticResource ModernButtonStyle}" Margin="0,0,8,6" Padding="10,6,10,6" Click="BtnThemeOled_Click">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border Width="12" Height="12" CornerRadius="6" Background="#080809" BorderBrush="#444" BorderThickness="1" Margin="0,0,6,0"/>
+                                                <TextBlock Text="OLED Pitch Black" FontSize="11"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Style="{StaticResource ModernButtonStyle}" Margin="0,0,8,6" Padding="10,6,10,6" Click="BtnThemeObsidian_Click">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border Width="12" Height="12" CornerRadius="6" Background="#141418" BorderBrush="#444" BorderThickness="1" Margin="0,0,6,0"/>
+                                                <TextBlock Text="Graphite Obsidian" FontSize="11"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Style="{StaticResource ModernButtonStyle}" Margin="0,0,8,6" Padding="10,6,10,6" Click="BtnThemeMidnight_Click">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border Width="12" Height="12" CornerRadius="6" Background="#161618" BorderBrush="#444" BorderThickness="1" Margin="0,0,6,0"/>
+                                                <TextBlock Text="Titanium Slate" FontSize="11"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Style="{StaticResource ModernButtonStyle}" Margin="0,0,8,6" Padding="10,6,10,6" Click="BtnThemeCyber_Click">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border Width="12" Height="12" CornerRadius="6" Background="#1F1F24" BorderBrush="#444" BorderThickness="1" Margin="0,0,6,0"/>
+                                                <TextBlock Text="Space Gray" FontSize="11"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </WrapPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- Card 4: Hiệu ứng bóng đổ -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid Grid.Row="0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Bóng đổ tạo chiều sâu (Drop Shadow)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                            <TextBlock Text="Tạo bóng mờ tự nhiên xung quanh viên thuốc giúp nổi bật trên nền desktop." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="ChkEnableShadow" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Click="ChkEnableShadow_Click"/>
+                                    </Grid>
+                                    <Grid Grid.Row="1" Margin="0,14,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Slider x:Name="SliderShadowOpacity" Grid.Column="0" Minimum="0.1" Maximum="1.0" Value="0.6" Style="{StaticResource ModernSliderStyle}" Margin="0,0,14,0" ValueChanged="SliderShadowOpacity_ValueChanged"/>
+                                        <TextBlock x:Name="LblShadowOpacity" Grid.Column="1" Text="Độ đậm: 60%" Foreground="#808092" FontSize="11" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+
+                            <!-- Card 5: Hiệu ứng Hover -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Hiệu ứng co giãn khi rê chuột (Hover Animation)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                        <TextBlock Text="Tự động giãn nhẹ bề ngang khi di chuột vào viên thuốc." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkHoverAnimation" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Click="ChkHoverAnimation_Click"/>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- ================= TAB 3: TÍNH NĂNG & WIDGET ================= -->
+                        <StackPanel x:Name="PanelFeatures" Visibility="Collapsed">
+                            <TextBlock Text="Tính năng &amp; Tiện ích (Widgets)" Foreground="#FFFFFF" FontSize="18" FontWeight="Bold" Margin="0,0,0,4"/>
+                            <TextBlock Text="Bật hoặc tắt các module tích hợp như Đồng hồ, Trạng thái Pin, Trình phát nhạc." Foreground="#858595" FontSize="12" Margin="0,0,0,18"/>
+
+                            <!-- Card 1: Đồng hồ -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid Grid.Row="0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Hiển thị đồng hồ (Clock)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                            <TextBlock Text="Hiển thị giờ hiện tại ở phía bên trái của Dynamic Island." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="ChkShowClock" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Click="ChkShowClock_Click"/>
+                                    </Grid>
+                                    <Grid Grid.Row="1" Margin="0,12,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Định dạng 24 giờ (VD: 14:30 thay vì 02:30 PM)" Foreground="#A0A0B2" FontSize="12" VerticalAlignment="Center"/>
+                                        <CheckBox x:Name="ChkUse24HourClock" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Click="ChkUse24HourClock_Click"/>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+
+                            <!-- Card 2: Trạng thái Pin -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Hiển thị mức Pin (Battery Widget)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                        <TextBlock Text="Hiển thị phần trăm pin và trạng thái sạc (tự chuyển thành AC nếu dùng máy bàn)." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkShowBattery" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Click="ChkShowBattery_Click"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Card 3: Tự động chuyển giao diện khi có nhạc -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Tự động hiện bài hát (Media Pill Auto-Switch)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                        <TextBlock Text="Tự động mở rộng sang dạng Media Compact khi phát nhạc từ Spotify, Chrome, Edge..." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkAutoSwitchMedia" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Click="ChkAutoSwitchMedia_Click"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Card 4: Sóng nhạc nhảy Equalizer -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Hoạt ảnh sóng nhạc (Equalizer Waveform)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                        <TextBlock Text="Hiệu ứng 3 cột sóng chuyển động nhịp nhàng theo nhạc đang phát." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkEqualizerEnabled" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Click="ChkEqualizerEnabled_Click"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Card 5: HUD Âm lượng & Độ sáng -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="HUD Âm lượng &amp; Độ sáng (Volume &amp; Brightness HUD)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                        <TextBlock Text="Bắt sự kiện Volume/Brightness hệ thống để hiện thanh trượt mượt mà trên viên thuốc thay vì Windows HUD." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkVolumeBrightnessHud" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Click="ChkVolumeBrightnessHud_Click"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Card 6: Cuộn chuột trên viên thuốc -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Cuộn chuột điều chỉnh nhanh (Mouse Wheel Control)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                        <TextBlock Text="Lăn chuột trực tiếp trên Dynamic Island để tăng/giảm Volume, giữ phím Alt + Lăn chuột để chỉnh độ sáng." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkMouseWheelVolume" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Click="ChkMouseWheelVolume_Click"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Card 7: Đèn báo bảo mật (Privacy Indicators) -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Đèn báo bảo mật (Privacy Indicators macOS/iOS)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                        <TextBlock Text="Hiện chấm Cam khi ứng dụng thu âm (Microphone), chấm Xanh lá khi bật Webcam. Click vào để Mute Mic toàn hệ thống." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkPrivacyIndicators" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Click="ChkPrivacyIndicators_Click"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Card 8: Thông báo phím khóa & Bộ gõ -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Thông báo phím khóa &amp; Bộ gõ (Lock Key &amp; Input HUD)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                        <TextBlock Text="Hiện thông báo kiểu Dynamic Island khi bật/tắt Caps Lock, Num Lock hoặc khi chuyển bộ gõ Tiếng Việt / Tiếng Anh." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkLockKeyNotifications" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Click="ChkLockKeyNotifications_Click"/>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- ================= TAB 4: HỆ THỐNG & PHÍM TẮT ================= -->
+                        <StackPanel x:Name="PanelSystem" Visibility="Collapsed">
+                            <TextBlock Text="Hệ thống &amp; Phím tắt" Foreground="#FFFFFF" FontSize="18" FontWeight="Bold" Margin="0,0,0,4"/>
+                            <TextBlock Text="Cấu hình khởi động cùng Windows và danh sách các thao tác nhanh." Foreground="#858595" FontSize="12" Margin="0,0,0,18"/>
+
+                            <!-- Card 1: Khởi động cùng Windows -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Khởi động cùng Windows (Run on Startup)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                        <TextBlock Text="Tự động mở Dynamic Island mỗi khi bạn bật hoặc khởi động lại máy tính." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkStartWithWindows" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="False" Click="ChkStartWithWindows_Click"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Card 2: Danh sách phím tắt & Thao tác -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <StackPanel>
+                                    <TextBlock Text="Bảng phím tắt &amp; Cử chỉ thao tác" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,12"/>
+
+                                    <!-- Row 1: F9 -->
+                                    <Grid Margin="0,4,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Background="#242432" CornerRadius="4" Padding="8,2,8,2" Margin="0,0,12,0">
+                                            <TextBlock Text="F9" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11"/>
+                                        </Border>
+                                        <TextBlock Grid.Column="1" Text="Chuyển nhanh Dynamic Island sang màn hình tiếp theo" Foreground="#B0B0C0" FontSize="12" VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <!-- Row 2: Chuột trái -->
+                                    <Grid Margin="0,6,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Background="#242432" CornerRadius="4" Padding="8,2,8,2" Margin="0,0,12,0">
+                                            <TextBlock Text="Click chuột trái" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11"/>
+                                        </Border>
+                                        <TextBlock Grid.Column="1" Text="Mở rộng chi tiết trình phát nhạc / Thu nhỏ viên thuốc" Foreground="#B0B0C0" FontSize="12" VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <!-- Row 3: Giữ & kéo -->
+                                    <Grid Margin="0,6,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Background="#242432" CornerRadius="4" Padding="8,2,8,2" Margin="0,0,12,0">
+                                            <TextBlock Text="Giữ &amp; Kéo chuột" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11"/>
+                                        </Border>
+                                        <TextBlock Grid.Column="1" Text="Kéo thả vị trí của Dynamic Island tự do trên màn hình" Foreground="#B0B0C0" FontSize="12" VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <!-- Row 4: Chuột phải -->
+                                    <Grid Margin="0,6,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Background="#242432" CornerRadius="4" Padding="8,2,8,2" Margin="0,0,12,0">
+                                            <TextBlock Text="Click chuột phải" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11"/>
+                                        </Border>
+                                        <TextBlock Grid.Column="1" Text="Mở Menu nhanh: Màn hình, Cài đặt, Căn giữa, Thoát" Foreground="#B0B0C0" FontSize="12" VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <!-- Row 5: Cuộn chuột trên Island -->
+                                    <Grid Margin="0,6,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Background="#242432" CornerRadius="4" Padding="8,2,8,2" Margin="0,0,12,0">
+                                            <TextBlock Text="Lăn con lăn chuột" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11"/>
+                                        </Border>
+                                        <TextBlock Grid.Column="1" Text="Tăng / giảm âm lượng hệ thống nhanh (±2%)" Foreground="#B0B0C0" FontSize="12" VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <!-- Row 6: Alt + Cuộn chuột -->
+                                    <Grid Margin="0,6,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Background="#242432" CornerRadius="4" Padding="8,2,8,2" Margin="0,0,12,0">
+                                            <TextBlock Text="Alt + Lăn chuột" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11"/>
+                                        </Border>
+                                        <TextBlock Grid.Column="1" Text="Tăng / giảm độ sáng màn hình trực tiếp (±5%)" Foreground="#B0B0C0" FontSize="12" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Card 3: Thông tin ứng dụng -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Dynamic Island for Windows" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                        <TextBlock Text="Phiên bản 1.1.0 • .NET 8.0 WPF • Tối ưu hóa hiệu năng cao" Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <Border Grid.Column="1" Background="#2C2C2E" CornerRadius="4" Padding="8,3,8,3">
+                                        <TextBlock Text="Hoạt động tốt" Foreground="#FFFFFF" FontWeight="Bold" FontSize="10"/>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- ================= TAB 5: TRUYỀN FILE (PHONE LINK & LOCALSEND) ================= -->
+                        <StackPanel x:Name="PanelLocalSend" Visibility="Collapsed">
+                            <TextBlock Text="Truyền file sang điện thoại" Foreground="#FFFFFF" FontSize="18" FontWeight="Bold" Margin="0,0,0,4"/>
+                            <TextBlock Text="Kéo thả tệp bất kỳ từ máy tính vào Dynamic Island để gửi trực tiếp sang điện thoại." Foreground="#858595" FontSize="12" Margin="0,0,0,18"/>
+
+                            <!-- Card 0: Lựa chọn phương thức truyền file -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <StackPanel>
+                                    <TextBlock Text="Phương thức truyền file ưu tiên" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,4"/>
+                                    <TextBlock Text="Chọn phương án phù hợp với môi trường mạng hiện tại của bạn." Foreground="#808092" FontSize="11" Margin="0,0,0,12"/>
+
+                                    <!-- Option 1: Windows Share (Phone Link) -->
+                                    <Border Background="#1C1C28" BorderBrush="#2F2F40" BorderThickness="1" CornerRadius="8" Padding="12,10,12,10" Margin="0,0,0,10">
+                                        <RadioButton x:Name="RadMethodWindowsShare" GroupName="TransferMethodGroup" IsChecked="True" Checked="RadMethod_Checked">
+                                            <StackPanel Margin="6,0,0,0">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="⚡ Phương án 1: Windows Share (Phone Link / Nearby Share)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="12"/>
+                                                    <Border Background="#2C2C2E" CornerRadius="3" Padding="5,1,5,1" Margin="8,0,0,0">
+                                                        <TextBlock Text="KHUYÊN DÙNG TẠI QUÁN CÀ PHÊ" Foreground="#FFFFFF" FontWeight="Bold" FontSize="9"/>
+                                                    </Border>
+                                                </StackPanel>
+                                                <TextBlock Text="Hoạt động ở mọi nơi (quán cà phê, công ty, trường học). Kết nối qua Bluetooth/Cloud của Microsoft, không bị chặn bởi bảo mật AP Isolation của Router." Foreground="#808095" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </RadioButton>
+                                    </Border>
+
+                                    <!-- Option 2: LocalSend API -->
+                                    <Border Background="#1C1C28" BorderBrush="#2F2F40" BorderThickness="1" CornerRadius="8" Padding="12,10,12,10">
+                                        <RadioButton x:Name="RadMethodLocalSend" GroupName="TransferMethodGroup" Checked="RadMethod_Checked">
+                                            <StackPanel Margin="6,0,0,0">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="🌐 Phương án 2: LocalSend API (Mạng Wi-Fi nội bộ)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="12"/>
+                                                </StackPanel>
+                                                <TextBlock Text="Truyền qua giao thức HTTP mạng LAN. Yêu cầu Router cho phép các thiết bị kết nối với nhau (thích hợp mạng Wi-Fi gia đình)." Foreground="#808095" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </RadioButton>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Card: Giải thích AP Isolation ở quán cafe -->
+                            <Border Style="{StaticResource SettingCardBorder}" Background="#161A24" BorderBrush="#25354F">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="☕" FontSize="20" Margin="0,2,14,0" VerticalAlignment="Top"/>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="Tại sao LocalSend không gửi được ở quán cà phê?" Foreground="#70A0FF" FontWeight="SemiBold" FontSize="12"/>
+                                        <TextBlock Text="Các mạng Wi-Fi công cộng luôn bật tính năng 'AP Isolation' (cô lập thiết bị) để bảo mật, ngăn các máy trong quán thấy nhau. Vì vậy, Phương án 1 (Phone Link) là giải pháp hoàn hảo vì kết nối qua Bluetooth và dịch vụ Microsoft! Nếu dùng LocalSend bị lỗi, Dynamic Island cũng sẽ tự động chuyển sang Phone Link cho bạn." Foreground="#9AB5E0" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- Card 1: Tự động dò tìm điện thoại -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Tự động dò tìm điện thoại (Khuyến nghị)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                        <TextBlock Text="Tự động quét và tìm kiếm điện thoại đang mở LocalSend trong cùng mạng Wi-Fi." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkLocalSendAutoDiscovery" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Click="ChkLocalSendAutoDiscovery_Click"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Card 2: Cấu hình địa chỉ IP mục tiêu -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <StackPanel>
+                                    <TextBlock Text="Cấu hình thiết bị nhận" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,4"/>
+                                    <TextBlock Text="Nếu máy không tự động tìm thấy, bạn có thể nhập trực tiếp địa chỉ IP hiển thị trong app LocalSend trên điện thoại." Foreground="#808092" FontSize="11" Margin="0,0,0,14"/>
+
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="16"/>
+                                            <ColumnDefinition Width="100"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Địa chỉ IP điện thoại" Foreground="#B0B0C0" FontSize="11" Margin="0,0,0,6"/>
+                                            <TextBox x:Name="TxtLocalSendIp" Height="32" TextChanged="TxtLocalSendIp_TextChanged"/>
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="Cổng (Port)" Foreground="#B0B0C0" FontSize="11" Margin="0,0,0,6"/>
+                                            <TextBox x:Name="TxtLocalSendPort" Height="32" Text="53317" TextChanged="TxtLocalSendPort_TextChanged"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Action buttons & status -->
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="8"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Button x:Name="BtnLocalSendScan" Grid.Column="0" Style="{StaticResource ModernButtonStyle}" Click="BtnLocalSendScan_Click">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="🔍" FontSize="11" Margin="0,0,6,0"/>
+                                                <TextBlock Text="Quét tìm điện thoại"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button x:Name="BtnLocalSendTest" Grid.Column="2" Style="{StaticResource ModernButtonStyle}" Click="BtnLocalSendTest_Click">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="⚡" FontSize="11" Margin="0,0,6,0"/>
+                                                <TextBlock Text="Thử kết nối"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <TextBlock x:Name="TxtLocalSendStatus" Grid.Column="3" Text="Sẵn sàng quét" Foreground="#858595" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Card 3: Hướng dẫn nhanh -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <StackPanel>
+                                    <TextBlock Text="📖 Cách sử dụng cực kỳ đơn giản" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,10"/>
+
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Width="20" Height="20" CornerRadius="10" Background="#242432" Margin="0,0,10,0">
+                                            <TextBlock Text="1" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <TextBlock Grid.Column="1" Text="Cài đặt LocalSend trên điện thoại (Android qua CH Play, iOS qua App Store - Miễn phí 100%)." Foreground="#B0B0C0" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Width="20" Height="20" CornerRadius="10" Background="#242432" Margin="0,0,10,0">
+                                            <TextBlock Text="2" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <TextBlock Grid.Column="1" Text="Đảm bảo máy tính và điện thoại đang bắt chung 1 mạng Wi-Fi gia đình / văn phòng." Foreground="#B0B0C0" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Width="20" Height="20" CornerRadius="10" Background="#242432" Margin="0,0,10,0">
+                                            <TextBlock Text="3" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <TextBlock Grid.Column="1" Text="Mở LocalSend trên điện thoại, sau đó kéo tệp bất kỳ từ máy tính thả vào viên thuốc Dynamic Island!" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>
