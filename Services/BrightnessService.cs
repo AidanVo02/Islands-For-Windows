@@ -82,36 +82,59 @@ namespace DynamicIsland.Services
             return _cachedBrightness;
         }
 
+        private System.Threading.CancellationTokenSource? _brightnessCts;
+        private readonly object _brightnessLock = new();
+
         public void SetBrightness(int brightness)
         {
             brightness = Math.Clamp(brightness, 0, 100);
             _cachedBrightness = brightness;
 
-            // Phát event ngay lập tức để HUD phản hồi 0ms
+            // Phát event ngay lập tức để HUD và UI phản hồi 0ms
             BrightnessChanged?.Invoke(this, new BrightnessChangedEventArgs { Brightness = brightness });
 
-            Task.Run(() =>
+            lock (_brightnessLock)
             {
-                bool success = false;
-                try
-                {
-                    // Cách 1: WMI (Laptop)
-                    using var searcher = new ManagementObjectSearcher(@"root\wmi", "SELECT * FROM WmiMonitorBrightnessMethods WHERE Active = TRUE");
-                    foreach (ManagementObject obj in searcher.Get())
-                    {
-                        obj.InvokeMethod("WmiSetBrightness", new object[] { 1u, (byte)brightness });
-                        success = true;
-                        break;
-                    }
-                }
-                catch {}
+                _brightnessCts?.Cancel();
+                _brightnessCts = new System.Threading.CancellationTokenSource();
+                var token = _brightnessCts.Token;
 
-                if (!success)
+                Task.Run(async () =>
                 {
-                    // Cách 2: dxva2.dll (Desktop monitor)
-                    SetDesktopMonitorBrightness(brightness);
-                }
-            });
+                    try
+                    {
+                        // Debounce 40ms để tránh nghẽn WMI/DXVA2 khi kéo slider liên tục
+                        await Task.Delay(40, token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return;
+                    }
+
+                    if (token.IsCancellationRequested) return;
+
+                    bool success = false;
+                    try
+                    {
+                        // Cách 1: WMI (Laptop)
+                        using var searcher = new ManagementObjectSearcher(@"root\wmi", "SELECT * FROM WmiMonitorBrightnessMethods WHERE Active = TRUE");
+                        foreach (ManagementObject obj in searcher.Get())
+                        {
+                            if (token.IsCancellationRequested) return;
+                            obj.InvokeMethod("WmiSetBrightness", new object[] { 1u, (byte)brightness });
+                            success = true;
+                            break;
+                        }
+                    }
+                    catch {}
+
+                    if (!success && !token.IsCancellationRequested)
+                    {
+                        // Cách 2: dxva2.dll (Desktop monitor)
+                        SetDesktopMonitorBrightness(brightness);
+                    }
+                }, token);
+            }
         }
 
         public void AdjustBrightness(int delta)

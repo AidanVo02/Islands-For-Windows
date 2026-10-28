@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Dynamic Island"
-        Width="580" Height="280"
+        Width="850" Height="340"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="{x:Null}"
@@ -12,6 +12,7 @@
         WindowStartupLocation="Manual"
         AllowDrop="True"
         Loaded="Window_Loaded"
+        Closed="Window_Closed"
         KeyDown="Window_KeyDown">
 
     <Window.Resources>
@@ -112,32 +113,34 @@
                             <!-- Track & Thumb -->
                             <Track x:Name="PART_Track">
                                 <Track.DecreaseRepeatButton>
-                                    <RepeatButton Command="Slider.DecreaseLarge">
+                                    <RepeatButton Command="Slider.DecreaseLarge" Foreground="{TemplateBinding Foreground}" Focusable="False">
                                         <RepeatButton.Template>
-                                            <ControlTemplate>
+                                            <ControlTemplate TargetType="RepeatButton">
                                                 <Border Height="14" Background="{TemplateBinding Foreground}" CornerRadius="7"/>
                                             </ControlTemplate>
                                         </RepeatButton.Template>
                                     </RepeatButton>
                                 </Track.DecreaseRepeatButton>
                                 <Track.IncreaseRepeatButton>
-                                    <RepeatButton Command="Slider.IncreaseLarge">
+                                    <RepeatButton Command="Slider.IncreaseLarge" Focusable="False">
                                         <RepeatButton.Template>
-                                            <ControlTemplate>
+                                            <ControlTemplate TargetType="RepeatButton">
                                                 <Border Height="14" Background="Transparent"/>
                                             </ControlTemplate>
                                         </RepeatButton.Template>
                                     </RepeatButton>
                                 </Track.IncreaseRepeatButton>
                                 <Track.Thumb>
-                                    <Thumb Width="20" Height="20" Cursor="Hand">
+                                    <Thumb Width="24" Height="24" Cursor="Hand" Focusable="False">
                                         <Thumb.Template>
-                                            <ControlTemplate>
-                                                <Ellipse Fill="#FFFFFF" Width="20" Height="20">
-                                                    <Ellipse.Effect>
-                                                        <DropShadowEffect BlurRadius="6" ShadowDepth="1" Opacity="0.45" Color="#000000"/>
-                                                    </Ellipse.Effect>
-                                                </Ellipse>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Grid Width="24" Height="24" Background="Transparent">
+                                                    <Ellipse Fill="#FFFFFF" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <Ellipse.Effect>
+                                                            <DropShadowEffect BlurRadius="6" ShadowDepth="1" Opacity="0.45" Color="#000000"/>
+                                                        </Ellipse.Effect>
+                                                    </Ellipse>
+                                                </Grid>
                                             </ControlTemplate>
                                         </Thumb.Template>
                                     </Thumb>
@@ -156,6 +159,11 @@
             <MenuItem Header="Cài đặt (Settings)" Click="MenuSettings_Click" FontWeight="SemiBold" InputGestureText="Ctrl+,">
                 <MenuItem.Icon>
                     <TextBlock Style="{StaticResource FluentIconStyle}" Text="&#xE713;" FontSize="13" Foreground="#AEAEB2"/>
+                </MenuItem.Icon>
+            </MenuItem>
+            <MenuItem x:Name="MenuLockPosition" Header="Khóa vị trí (Lock Position)" IsCheckable="True" Click="MenuLockPosition_Click">
+                <MenuItem.Icon>
+                    <TextBlock Style="{StaticResource FluentIconStyle}" Text="&#xE72E;" FontSize="13" Foreground="#AEAEB2"/>
                 </MenuItem.Icon>
             </MenuItem>
             <MenuItem x:Name="MenuAutoHide" Header="Tự động ẩn (Auto-Hide)" IsCheckable="True" Click="MenuAutoHide_Click">
@@ -247,23 +255,26 @@
                 PreviewMouseWheel="IslandContainer_PreviewMouseWheel"
                 PreviewMouseLeftButtonDown="IslandContainer_PreviewMouseLeftButtonDown"
                 PreviewMouseMove="IslandContainer_PreviewMouseMove"
-                PreviewMouseLeftButtonUp="IslandContainer_PreviewMouseLeftButtonUp">
+                PreviewMouseLeftButtonUp="IslandContainer_PreviewMouseLeftButtonUp"
+                IsManipulationEnabled="True"
+                ManipulationStarting="IslandContainer_ManipulationStarting"
+                ManipulationDelta="IslandContainer_ManipulationDelta">
 
             <Grid>
                 <!-- 1. COMPACT IDLE VIEW -->
-                <Grid x:Name="CompactIdleView" Visibility="Visible" Margin="14,0,14,0">
+                <Grid x:Name="CompactIdleView" Visibility="Visible" Margin="16,0,16,0">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1*"/>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="1*"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- Clock -->
-                    <StackPanel x:Name="ClockPanel" Orientation="Horizontal" VerticalAlignment="Center" Grid.Column="0">
-                        <TextBlock x:Name="TxtClock" Text="12:00" Foreground="#F0F0F0" FontWeight="SemiBold" FontSize="13" FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                    <!-- Clock (Căn trái đều) -->
+                    <StackPanel x:Name="ClockPanel" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" Grid.Column="0">
+                        <TextBlock x:Name="TxtClock" Text="12:00" Foreground="#F0F0F0" FontWeight="SemiBold" FontSize="13" FontFamily="Segoe UI Variable Display, Segoe UI" VerticalAlignment="Center" Margin="0,1.5,0,0" Typography.NumeralAlignment="Tabular" Typography.NumeralStyle="Lining"/>
                     </StackPanel>
 
-                    <!-- Privacy Indicators (Đèn báo bảo mật chuẩn macOS/iOS: Cam = Mic, Xanh lá = Camera) -->
+                    <!-- Privacy Indicators (Đèn báo bảo mật nằm chuẩn 100% chính giữa viên thuốc) -->
                     <StackPanel x:Name="PrivacyIndicatorsPanel" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
                         <!-- Microphone Indicator (Chấm Cam) -->
                         <Border x:Name="MicPrivacyDot" Width="7" Height="7" CornerRadius="3.5" Background="#FF9500" Margin="3,0,3,0" Cursor="Hand" ToolTipService.InitialShowDelay="50" MouseLeftButtonUp="MicPrivacyDot_MouseLeftButtonUp">
@@ -284,10 +295,13 @@
                             </Border.ToolTip>
                         </Border>
 
-                        <!-- Camera Indicator (Chấm Xanh Lá) -->
-                        <Border x:Name="CameraPrivacyDot" Width="7" Height="7" CornerRadius="3.5" Background="#34C759" Margin="3,0,3,0" Cursor="Hand" ToolTipService.InitialShowDelay="50">
+                        <!-- Camera Indicator (Chấm Xanh Lá với hiệu ứng thở nhịp nhàng & Glow neon) -->
+                        <Border x:Name="CameraPrivacyDot" Width="7" Height="7" CornerRadius="3.5" Background="#34C759" Margin="3,0,3,0" Cursor="Hand" ToolTipService.InitialShowDelay="50" RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform>
+                                <ScaleTransform x:Name="IdleCameraDotScale" ScaleX="1" ScaleY="1"/>
+                            </Border.RenderTransform>
                             <Border.Effect>
-                                <DropShadowEffect BlurRadius="6" ShadowDepth="0" Color="#34C759" Opacity="0.9"/>
+                                <DropShadowEffect x:Name="IdleCameraDotGlow" BlurRadius="7" ShadowDepth="0" Color="#34C759" Opacity="0.95"/>
                             </Border.Effect>
                             <Border.ToolTip>
                                 <ToolTip Background="#18181B" Foreground="#FFFFFF" BorderBrush="#38383D" Padding="8,6,8,6">
@@ -303,10 +317,10 @@
                         </Border>
                     </StackPanel>
 
-                    <!-- Battery / Power -->
-                    <StackPanel x:Name="BatteryPanel" Orientation="Horizontal" VerticalAlignment="Center" Grid.Column="2">
-                        <TextBlock x:Name="TxtBatteryPercent" Text="98%" Foreground="#8E8E93" FontSize="11" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                        <Border Width="16" Height="9" BorderBrush="#545458" BorderThickness="1" CornerRadius="2" VerticalAlignment="Center" Padding="1">
+                    <!-- Battery / Power (Căn phải đều và cân bằng trục dọc) -->
+                    <StackPanel x:Name="BatteryPanel" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Grid.Column="2">
+                        <TextBlock x:Name="TxtBatteryPercent" Text="98%" Foreground="#8E8E93" FontSize="11" Margin="0,1.5,5,0" VerticalAlignment="Center" Typography.NumeralAlignment="Tabular" Typography.NumeralStyle="Lining"/>
+                        <Border Width="16" Height="9" BorderBrush="#545458" BorderThickness="1" CornerRadius="2" VerticalAlignment="Center" Padding="1" Margin="0,1,0,0">
                             <Grid>
                                 <Rectangle x:Name="BatteryFill" Fill="#34C759" HorizontalAlignment="Left" Width="10"/>
                             </Grid>
@@ -373,202 +387,323 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Row 0: Top Header with Device/Status & Quick Actions -->
+                    <!-- Row 0: Top Header with Device/Status, Center Clock & Quick Actions -->
                     <Grid Grid.Row="0" Margin="0,0,0,10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
+                        <!-- 1. Absolute Center Clock (Đồng hồ luôn nằm chuẩn 100% chính giữa Header, không bị đẩy lệch hay chèn ép) -->
+                        <TextBlock x:Name="TxtExpClock" Text="12:00" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="20" 
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" 
+                                   FontFamily="Segoe UI Variable Display, Segoe UI" IsHitTestVisible="False"
+                                   Typography.NumeralAlignment="Tabular"
+                                   Typography.NumeralStyle="Lining"
+                                   Margin="0,1,0,0"/>
 
-                        <!-- Left: Badge status & Battery -->
-                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Border Background="#1C1C1E" BorderBrush="#2C2C2E" BorderThickness="1" CornerRadius="12" Padding="8,3,10,3" Margin="0,0,8,0">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="&#xE9E9;" Style="{StaticResource FluentIconStyle}" FontSize="11" Margin="0,0,0,0" Foreground="#FFFFFF"/>
-                                    <!-- <TextBlock Text="Trung tâm điều khiển" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="11"/> -->
-                                </StackPanel>
-                            </Border>
-                            
-                            <!-- Battery Badge (Màu xanh lá đặc trưng cho pin) -->
-                            <Border x:Name="ExpBatteryBadge" Background="#152A1C" BorderBrush="#245832" BorderThickness="1" CornerRadius="12" Padding="8,3,8,3">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock x:Name="TxtExpBatteryIcon" Text="&#xE860;" Style="{StaticResource FluentIconStyle}" FontSize="12" Margin="0,0,5,0" Foreground="#34C759"/>
-                                    <TextBlock x:Name="TxtExpBatteryText" Text="100%" Foreground="#34C759" FontWeight="Bold" FontSize="11"/>
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
+                        <!-- 2. DockPanel chứa 2 nhóm Left và Right trải đều 2 bên -->
+                        <DockPanel LastChildFill="False" VerticalAlignment="Center">
+                            <!-- Left: Badge status & Battery -->
+                            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                                <!-- Circular Control Center Icon Badge (Tròn đều 26x26, icon ở chính giữa) -->
+                                <Border Width="26" Height="26" CornerRadius="13" Background="#1C1C1E" BorderBrush="#2C2C2E" BorderThickness="1" VerticalAlignment="Center" Margin="0,0,8,0">
+                                    <TextBlock Text="&#xE9E9;" Style="{StaticResource FluentIconStyle}" FontSize="12" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                
+                                <!-- Battery Badge (Màu xanh lá đặc trưng cho pin) -->
+                                <Border x:Name="ExpBatteryBadge" Height="26" CornerRadius="13" Background="#152A1C" BorderBrush="#245832" BorderThickness="1" Padding="8,0,8,0" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock x:Name="TxtExpBatteryIcon" Text="&#xE860;" Style="{StaticResource FluentIconStyle}" FontSize="12" Margin="0,0,5,0" Foreground="#34C759" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="TxtExpBatteryText" Text="100%" Foreground="#34C759" FontWeight="Bold" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
 
-                        <!-- Right: Action Buttons -->
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <!-- Privacy Alert Badge in Control Center -->
-                            <Border x:Name="ExpPrivacyBadge" Background="#261A08" BorderBrush="#5C3B0E" BorderThickness="1" CornerRadius="12" Padding="7,3,7,3" Margin="0,0,6,0" Visibility="Collapsed">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Ellipse x:Name="ExpPrivacyDot" Width="6" Height="6" Fill="#FF9500" Margin="0,0,5,0"/>
-                                    <TextBlock x:Name="TxtExpPrivacyText" Text="Mic đang dùng" Foreground="#FF9500" FontSize="10" FontWeight="SemiBold"/>
-                                </StackPanel>
-                            </Border>
+                            <!-- Right: Action Buttons (Căn phải thẳng hàng) -->
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <!-- Privacy Alert Badge in Control Center (Glow Neon & Breathing Pulse) -->
+                                <Border x:Name="ExpPrivacyBadge" Height="26" CornerRadius="13" Background="#2434C759" BorderBrush="#34C759" BorderThickness="1" Padding="7,0,8,0" Margin="0,0,7,0" VerticalAlignment="Center" Visibility="Collapsed" Cursor="Hand" MouseLeftButtonUp="ExpPrivacyBadge_MouseLeftButtonUp">
+                                    <!-- Aura Glow xung quanh background của badge -->
+                                    <Border.Effect>
+                                        <DropShadowEffect x:Name="ExpPrivacyGlow" Color="#34C759" BlurRadius="12" ShadowDepth="0" Opacity="0.55"/>
+                                    </Border.Effect>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <!-- Chấm xanh lá có ScaleTransform và Glow riêng để thở nhịp nhàng -->
+                                        <Border Width="10" Height="10" Margin="0,0,5,0" VerticalAlignment="Center">
+                                            <Ellipse x:Name="ExpPrivacyDot" Width="6" Height="6" Fill="#34C759" HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                                                <Ellipse.RenderTransform>
+                                                    <ScaleTransform x:Name="ExpDotScale" ScaleX="1" ScaleY="1"/>
+                                                </Ellipse.RenderTransform>
+                                                <Ellipse.Effect>
+                                                    <DropShadowEffect x:Name="ExpDotGlow" Color="#34C759" BlurRadius="8" ShadowDepth="0" Opacity="0.95"/>
+                                                </Ellipse.Effect>
+                                            </Ellipse>
+                                        </Border>
+                                        <TextBlock x:Name="TxtExpPrivacyIcon" Text="&#xE722;" Style="{StaticResource FluentIconStyle}" FontSize="11" Foreground="#34C759" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="TxtExpPrivacyText" Text="Cam" Foreground="#34C759" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <Border.ToolTip>
+                                        <ToolTip Background="#18181B" Foreground="#FFFFFF" BorderBrush="#38383D" Padding="8,6,8,6">
+                                            <TextBlock x:Name="TxtExpPrivacyTooltipDetail" Text="Webcam đang hoạt động" FontSize="11"/>
+                                        </ToolTip>
+                                    </Border.ToolTip>
+                                </Border>
 
-                            <!-- Global Mic Mute Toggle Button -->
-                            <Button x:Name="BtnGlobalMicMute" Style="{StaticResource IslandButtonStyle}" Height="24" Padding="6,0,7,0" Click="BtnGlobalMicMute_Click" ToolTip="Tắt / Bật Micro toàn hệ thống" Margin="0,0,6,0">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock x:Name="TxtGlobalMicIcon" Text="&#xE720;" Style="{StaticResource FluentIconStyle}" FontSize="11" Margin="0,0,4,0" Foreground="#34C759"/>
-                                    <TextBlock x:Name="TxtGlobalMicText" Text="Mic ON" FontSize="10" Foreground="#E5E5EA" FontWeight="SemiBold"/>
-                                </StackPanel>
-                            </Button>
+                                <!-- Global Mic Mute Toggle Button (Chỉ Icon 26x26 tròn đều, đổi icon và màu khi Mute) -->
+                                <Button x:Name="BtnGlobalMicMute" Style="{StaticResource IslandButtonStyle}" Width="26" Height="26" Click="BtnGlobalMicMute_Click" ToolTip="Tắt / Bật Micro toàn hệ thống" Margin="0,0,6,0" VerticalAlignment="Center">
+                                    <TextBlock x:Name="TxtGlobalMicIcon" Text="&#xE720;" Style="{StaticResource FluentIconStyle}" FontSize="12" Foreground="#34C759" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Button>
 
-                            <!-- Music Player Switch Button (Màu xanh Spotify/Music đặc trưng) -->
-                            <Button x:Name="BtnSwitchToMedia" Style="{StaticResource IslandButtonStyle}" Height="24" Padding="7,0,7,0" Click="BtnSwitchToMedia_Click" ToolTip="Mở trình phát nhạc" Margin="0,0,6,0" Visibility="Collapsed">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="&#xEC4F;" Style="{StaticResource FluentIconStyle}" FontSize="11" Margin="0,0,5,0" Foreground="#1DB954"/>
-                                    <TextBlock Text="Nhạc" FontSize="11" Foreground="#1DB954" FontWeight="SemiBold"/>
-                                </StackPanel>
-                            </Button>
+                                <!-- Settings Button -->
+                                <Button Style="{StaticResource IslandButtonStyle}" Width="26" Height="26" Click="BtnSettings_Click" Margin="0,0,4,0" ToolTip="Cài đặt" VerticalAlignment="Center">
+                                    <TextBlock Text="&#xE713;" Style="{StaticResource FluentIconStyle}" FontSize="11" Foreground="#888898" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Button>
 
-                            <!-- Settings Button -->
-                            <Button Style="{StaticResource IslandButtonStyle}" Width="24" Height="24" Click="BtnSettings_Click" Margin="0,0,4,0" ToolTip="Cài đặt">
-                                <TextBlock Text="&#xE713;" Style="{StaticResource FluentIconStyle}" FontSize="11" Foreground="#888898"/>
-                            </Button>
-
-                            <!-- Collapse Button -->
-                            <Button Style="{StaticResource IslandButtonStyle}" Width="24" Height="24" Click="BtnCollapse_Click" ToolTip="Thu nhỏ">
-                                <TextBlock Text="&#xE711;" Style="{StaticResource FluentIconStyle}" FontSize="10" Foreground="#888898"/>
-                            </Button>
-                        </StackPanel>
+                                <!-- Collapse Button -->
+                                <Button Style="{StaticResource IslandButtonStyle}" Width="26" Height="26" Click="BtnCollapse_Click" ToolTip="Thu nhỏ" VerticalAlignment="Center">
+                                    <TextBlock Text="&#xE711;" Style="{StaticResource FluentIconStyle}" FontSize="10" Foreground="#888898" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Button>
+                            </StackPanel>
+                        </DockPanel>
                     </Grid>
 
-                    <!-- Row 1: Volume Slider Card -->
-                    <Border Grid.Row="1" Background="#161618" BorderBrush="#262628" BorderThickness="1" CornerRadius="12" Padding="12,6,12,6" Margin="0,0,0,8">
+                    <!-- Row 1: Volume Slider Card (Cân xứng tuyệt đối 2 bên: 42px - * - 42px) -->
+                    <Border x:Name="ExpandedCardVolume" Grid.Row="1" Background="#161618" BorderBrush="#262628" BorderThickness="1" CornerRadius="12" Padding="12,6,12,6" Margin="0,0,0,8">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="42"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="42"/>
                             </Grid.ColumnDefinitions>
 
                             <!-- Mute / Unmute Button -->
-                            <Button x:Name="BtnExpVolumeIcon" Grid.Column="0" Style="{StaticResource IslandButtonStyle}" Width="28" Height="28" Click="BtnExpVolumeIcon_Click" ToolTip="Bật / Tắt tiếng" VerticalAlignment="Center" Margin="0,0,8,0">
+                            <Button x:Name="BtnExpVolumeIcon" Grid.Column="0" Style="{StaticResource IslandButtonStyle}" Width="28" Height="28" Click="BtnExpVolumeIcon_Click" ToolTip="Bật / Tắt tiếng" HorizontalAlignment="Left" VerticalAlignment="Center">
                                 <TextBlock x:Name="TxtExpVolumeIcon" Text="&#xE994;" Style="{StaticResource FluentIconStyle}" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Button>
 
-                            <!-- Interactive Volume Slider -->
-                            <Slider x:Name="SliderExpVolume" Grid.Column="1" Minimum="0" Maximum="100" Value="50" Foreground="#FFFFFF" Style="{StaticResource PillSliderStyle}" ValueChanged="SliderExpVolume_ValueChanged"/>
+                            <!-- Interactive Volume Slider (Nằm chính giữa card) -->
+                            <Slider x:Name="SliderExpVolume" Grid.Column="1" Minimum="0" Maximum="100" Value="50" Foreground="#FFFFFF" Style="{StaticResource PillSliderStyle}" 
+                                    VerticalAlignment="Center" Margin="4,0,4,0"
+                                    ValueChanged="SliderExpVolume_ValueChanged"
+                                    PreviewMouseLeftButtonDown="Slider_PreviewMouseLeftButtonDown"
+                                    PreviewMouseMove="Slider_PreviewMouseMove"
+                                    PreviewMouseLeftButtonUp="Slider_PreviewMouseLeftButtonUp"/>
 
-                            <!-- Percent Text -->
-                            <TextBlock x:Name="TxtExpVolumePercent" Grid.Column="2" Text="50%" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12" Margin="10,0,2,0" VerticalAlignment="Center" Width="36" TextAlignment="Right"/>
+                            <!-- Percent Text (Cân xứng với icon bên trái) -->
+                            <TextBlock x:Name="TxtExpVolumePercent" Grid.Column="2" Text="50%" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" Width="40" TextAlignment="Right"/>
                         </Grid>
                     </Border>
 
-                    <!-- Row 2: Brightness Slider Card -->
-                    <Border Grid.Row="2" Background="#161618" BorderBrush="#262628" BorderThickness="1" CornerRadius="12" Padding="12,6,12,6" Margin="0,0,0,8">
+                    <!-- Row 2: Brightness Slider Card (Cân xứng tuyệt đối 2 bên: 42px - * - 42px) -->
+                    <Border x:Name="ExpandedCardBrightness" Grid.Row="2" Background="#161618" BorderBrush="#262628" BorderThickness="1" CornerRadius="12" Padding="12,6,12,6" Margin="0,0,0,8">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="42"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="42"/>
                             </Grid.ColumnDefinitions>
 
                             <!-- Sun Icon (Màu vàng ánh dương đặc trưng của độ sáng) -->
-                            <Button Grid.Column="0" Style="{StaticResource IslandButtonStyle}" Width="28" Height="28" ToolTip="Độ sáng màn hình" VerticalAlignment="Center" Margin="0,0,8,0">
+                            <Button Grid.Column="0" Style="{StaticResource IslandButtonStyle}" Width="28" Height="28" ToolTip="Độ sáng màn hình" HorizontalAlignment="Left" VerticalAlignment="Center">
                                 <TextBlock Text="&#xE706;" Style="{StaticResource FluentIconStyle}" FontSize="14" Foreground="#FFD54F" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Button>
 
-                            <!-- Interactive Brightness Slider (Vàng hổ phách #FFD54F) -->
-                            <Slider x:Name="SliderExpBrightness" Grid.Column="1" Minimum="0" Maximum="100" Value="70" Foreground="#FFD54F" Style="{StaticResource PillSliderStyle}" ValueChanged="SliderExpBrightness_ValueChanged"/>
+                            <!-- Interactive Brightness Slider (Nằm chính giữa card) -->
+                            <Slider x:Name="SliderExpBrightness" Grid.Column="1" Minimum="0" Maximum="100" Value="70" Foreground="#FFD54F" Style="{StaticResource PillSliderStyle}" 
+                                    VerticalAlignment="Center" Margin="4,0,4,0"
+                                    ValueChanged="SliderExpBrightness_ValueChanged"
+                                    PreviewMouseLeftButtonDown="Slider_PreviewMouseLeftButtonDown"
+                                    PreviewMouseMove="Slider_PreviewMouseMove"
+                                    PreviewMouseLeftButtonUp="Slider_PreviewMouseLeftButtonUp"/>
 
-                            <!-- Percent Text -->
-                            <TextBlock x:Name="TxtExpBrightnessPercent" Grid.Column="2" Text="70%" Foreground="#FFD54F" FontWeight="Bold" FontSize="12" Margin="10,0,2,0" VerticalAlignment="Center" Width="36" TextAlignment="Right"/>
+                            <!-- Percent Text (Cân xứng với icon bên trái) -->
+                            <TextBlock x:Name="TxtExpBrightnessPercent" Grid.Column="2" Text="70%" Foreground="#FFD54F" FontWeight="Bold" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" Width="40" TextAlignment="Right"/>
                         </Grid>
                     </Border>
 
-                    <!-- Row 3: Bottom Quick Info Bar -->
-                    <Grid Grid.Row="3" Margin="4,0,4,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="&#xE946;" Style="{StaticResource FluentIconStyle}" FontSize="11" Foreground="#71717A" Margin="0,0,5,0"/>
-                            <TextBlock Text="Cuộn chuột trên viên thuốc để chỉnh nhanh • Giữ Alt để chỉnh độ sáng" Foreground="#71717A" FontSize="10" VerticalAlignment="Center"/>
+                    <!-- Row 3: Bottom Switch Bar / Page Indicator (Căn chính giữa) -->
+                    <Grid Grid.Row="3" Margin="4,2,4,0">
+                        <!-- Clickable Switch Capsule: Tab 1 Active [●  ○] (Nhấn để chuyển sang Media Player) -->
+                        <Border x:Name="ExpHintFooter" 
+                                Height="18" 
+                                Background="#18181B" 
+                                BorderBrush="#2C2C30" 
+                                BorderThickness="1" 
+                                CornerRadius="9" 
+                                Padding="12,0,12,0"
+                                HorizontalAlignment="Center" 
+                                VerticalAlignment="Center" 
+                                Margin="0,2,0,0"
+                                Cursor="Hand" 
+                                ToolTip="Nhấn để chuyển sang Trình phát nhạc (hoặc Vuốt / Shift+Cuộn)" 
+                                MouseLeftButtonUp="BtnSwitchToMedia_Click">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border Width="16" Height="4" CornerRadius="2" Background="#FFFFFF" Margin="2,0,2,0"/>
+                                <Border Width="5" Height="4" CornerRadius="2" Background="#545458" Margin="2,0,2,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Privacy Alert Footer (Hiển thị chi tiết app dùng Camera / Mic khi phát hiện) -->
+                        <StackPanel x:Name="ExpPrivacyFooter" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
+                            <TextBlock x:Name="TxtExpPrivacyFooterIcon" Text="&#xE722;" Style="{StaticResource FluentIconStyle}" FontSize="11" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtExpPrivacyFooterText" Text="" Foreground="#8E8E93" FontSize="10" VerticalAlignment="Center"/>
                         </StackPanel>
-                        
-                        <TextBlock x:Name="TxtExpClock" Grid.Column="1" Text="15:30" Foreground="#8E8E93" FontSize="11" FontWeight="Medium" VerticalAlignment="Center"/>
                     </Grid>
                 </Grid>
 
-                <!-- 4. EXPANDED MEDIA VIEW (Detailed player) -->
-                <Grid x:Name="ExpandedMediaView" Visibility="Collapsed" Margin="16,14,16,14">
+                <!-- 4. EXPANDED MEDIA VIEW (Detailed player with Live Lyrics) -->
+                <Grid x:Name="ExpandedMediaView" Visibility="Collapsed" Margin="22,14,22,12">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
+                        <!-- Row 0: Hai cột chính (Lyrics bên trái, Thông tin & Controls bên phải) -->
                         <RowDefinition Height="*"/>
+                        <!-- Row 1: Thanh chuyển trang nằm tách biệt ở đáy, căn chính giữa, không phạm nút Play -->
+                        <RowDefinition Height="22"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Top Row: Cover Art + Info + Close/Collapse -->
+                    <!-- Main Two-Column Layout -->
                     <Grid Grid.Row="0">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
+                            <!-- Cột Trái: LIVE LYRICS (~58%) -->
+                            <ColumnDefinition Width="58*"/>
+                            <!-- Đường kẻ dọc phân cách thanh lịch -->
+                            <ColumnDefinition Width="1"/>
+                            <!-- Cột Phải: THÔNG TIN BÀI HÁT & CONTROLS (~42%) -->
+                            <ColumnDefinition Width="42*"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- Album Art -->
-                        <Border Grid.Column="0" Width="54" Height="54" CornerRadius="12" Background="#1E1E24" ClipToBounds="True">
-                            <Image x:Name="ImgLargeThumb" Stretch="UniformToFill"/>
-                        </Border>
+                        <!-- LEFT: LIVE LYRICS SECTION -->
+                        <Grid Grid.Column="0" Margin="0,0,16,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
 
-                        <!-- Metadata -->
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,8,0">
-                            <TextBlock x:Name="TxtLargeTitle" Text="Song Title" Foreground="#FFFFFF" FontWeight="Bold" FontSize="14" TextTrimming="CharacterEllipsis"/>
-                            <TextBlock x:Name="TxtLargeArtist" Text="Artist Name" Foreground="#A2A2AD" FontSize="12" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
-                            <Border Background="#14291D" BorderBrush="#235034" BorderThickness="1" CornerRadius="4" Padding="6,1,6,1" HorizontalAlignment="Left" Margin="0,4,0,0">
-                                <TextBlock x:Name="TxtAppSource" Text="Media" Foreground="#1DB954" FontSize="9" FontWeight="SemiBold"/>
-                            </Border>
-                        </StackPanel>
+                            <!-- Lyrics Section Header -->
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
+                                <TextBlock Text="&#xEC4F;" Style="{StaticResource FluentIconStyle}" FontSize="13" Foreground="#1DB954" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="LỜI BÀI HÁT TRỰC TIẾP" FontSize="10" FontWeight="Bold" Foreground="#1DB954" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TxtLyricsStatus" Text="" FontSize="10" Foreground="#8E8E98" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
 
-                        <!-- Action buttons: Switch to Control Center + Settings + Collapse -->
-                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
-                            <Button Style="{StaticResource IslandButtonStyle}" Width="24" Height="24" Click="BtnSwitchToControlCenter_Click" Margin="0,0,4,0" ToolTip="Trung tâm điều khiển">
-                                <TextBlock Text="&#xE9E9;" Style="{StaticResource FluentIconStyle}" FontSize="11" Foreground="#FFFFFF"/>
-                            </Button>
-                            <Button Style="{StaticResource IslandButtonStyle}" Width="24" Height="24" Click="BtnSettings_Click" Margin="0,0,4,0" ToolTip="Cài đặt">
-                                <TextBlock Text="&#xE713;" Style="{StaticResource FluentIconStyle}" FontSize="11" Foreground="#888890"/>
-                            </Button>
-                            <Button Style="{StaticResource IslandButtonStyle}" Width="24" Height="24" Click="BtnCollapse_Click" ToolTip="Thu nhỏ">
-                                <TextBlock Text="&#xE711;" Style="{StaticResource FluentIconStyle}" FontSize="10" Foreground="#888890"/>
-                            </Button>
-                        </StackPanel>
-                    </Grid>
+                            <!-- Live Lyrics Content Container (Căn chính giữa theo chiều dọc) -->
+                            <Grid Grid.Row="1" VerticalAlignment="Center">
+                                <!-- 1. Panel khi CÓ lời bài hát đồng bộ -->
+                                <StackPanel x:Name="PanelLyricsSynced" VerticalAlignment="Center">
+                                    <!-- Dòng trước (Previous line - mờ nhẹ) -->
+                                    <TextBlock x:Name="TxtLyricPrev" Text="" Foreground="#727280" FontSize="13" FontWeight="Normal" 
+                                               TextTrimming="CharacterEllipsis" Margin="0,0,0,6" Opacity="0.7"/>
 
-                    <!-- Middle Row: Timeline Progress -->
-                    <Grid Grid.Row="1" Margin="0,12,0,8">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
+                                    <!-- Dòng hiện tại (Current active line - to rõ rực rỡ, sáng trắng) -->
+                                    <TextBlock x:Name="TxtLyricCurrent" Text="Đang tải lời bài hát..." Foreground="#FFFFFF" FontSize="18" FontWeight="Bold" 
+                                               TextWrapping="Wrap" MaxHeight="52" TextTrimming="CharacterEllipsis" Margin="0,0,0,6"
+                                               FontFamily="Segoe UI Variable Display, Segoe UI">
+                                        <TextBlock.Effect>
+                                            <DropShadowEffect Color="#FFFFFF" BlurRadius="8" ShadowDepth="0" Opacity="0.3"/>
+                                        </TextBlock.Effect>
+                                    </TextBlock>
 
-                        <!-- Progress Bar (Xanh lá âm nhạc sống động) -->
-                        <ProgressBar x:Name="MediaProgressBar" Height="4" Minimum="0" Maximum="100" Value="35" Foreground="#1DB954" Background="#262628" BorderThickness="0"/>
+                                    <!-- Dòng kế tiếp (Next line - mờ nhẹ) -->
+                                    <TextBlock x:Name="TxtLyricNext" Text="" Foreground="#727280" FontSize="13" FontWeight="Normal" 
+                                               TextTrimming="CharacterEllipsis" Opacity="0.7"/>
+                                </StackPanel>
 
-                        <!-- Timers -->
-                        <Grid Grid.Row="1" Margin="0,3,0,0">
-                            <TextBlock x:Name="TxtElapsed" Text="0:00" Foreground="#7D7D88" FontSize="10" HorizontalAlignment="Left"/>
-                            <TextBlock x:Name="TxtDuration" Text="0:00" Foreground="#7D7D88" FontSize="10" HorizontalAlignment="Right"/>
+                                <!-- 2. Panel khi KHÔNG CÓ lời bài hát -->
+                                <StackPanel x:Name="PanelLyricsEmpty" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
+                                    <TextBlock Text="&#xEC4F;" Style="{StaticResource FluentIconStyle}" FontSize="24" Foreground="#3A3A42" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                                    <TextBlock x:Name="TxtLyricsEmptyMessage" Text="Không có lời bài hát đồng bộ" FontSize="12" Foreground="#7D7D88" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+
+                        <!-- VERTICAL DIVIDER -->
+                        <Rectangle Grid.Column="1" Width="1" Fill="#24242C" VerticalAlignment="Stretch" Margin="0,2,0,2"/>
+
+                        <!-- RIGHT: SONG INFO & CONTROLS SECTION -->
+                        <Grid Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Row 0: Art + Metadata + Actions -->
+                            <Grid Grid.Row="0" Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Album Art (52x52) -->
+                                <Border Grid.Column="0" Width="52" Height="52" CornerRadius="10" Background="#1E1E24" ClipToBounds="True" VerticalAlignment="Center">
+                                    <Image x:Name="ImgLargeThumb" Stretch="UniformToFill"/>
+                                </Border>
+
+                                <!-- Metadata -->
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0,6,0">
+                                    <TextBlock x:Name="TxtLargeTitle" Text="Song Title" Foreground="#FFFFFF" FontWeight="Bold" FontSize="14" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock x:Name="TxtLargeArtist" Text="Artist Name" Foreground="#9E9EA8" FontSize="12" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                                    <Border Background="#14291D" BorderBrush="#235034" BorderThickness="1" CornerRadius="4" Padding="5,1.5,5,1.5" HorizontalAlignment="Left" Margin="0,3,0,0">
+                                        <TextBlock x:Name="TxtAppSource" Text="Media" Foreground="#1DB954" FontSize="9" FontWeight="SemiBold"/>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- Actions: Settings + Collapse -->
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
+                                    <Button Style="{StaticResource IslandButtonStyle}" Width="24" Height="24" Click="BtnSettings_Click" Margin="0,0,3,0" ToolTip="Cài đặt">
+                                        <TextBlock Text="&#xE713;" Style="{StaticResource FluentIconStyle}" FontSize="11" Foreground="#888894"/>
+                                    </Button>
+                                    <Button Style="{StaticResource IslandButtonStyle}" Width="24" Height="24" Click="BtnCollapse_Click" ToolTip="Thu nhỏ">
+                                        <TextBlock Text="&#xE711;" Style="{StaticResource FluentIconStyle}" FontSize="10" Foreground="#888894"/>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Row 1: Timeline Progress Bar + Timers -->
+                            <Grid Grid.Row="1" Margin="0,0,0,10">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <ProgressBar x:Name="MediaProgressBar" Height="4" Minimum="0" Maximum="100" Value="35" Foreground="#1DB954" Background="#262628" BorderThickness="0"/>
+
+                                <Grid Grid.Row="1" Margin="0,3,0,0">
+                                    <TextBlock x:Name="TxtElapsed" Text="0:00" Foreground="#8E8E98" FontSize="10" HorizontalAlignment="Left"/>
+                                    <TextBlock x:Name="TxtDuration" Text="0:00" Foreground="#8E8E98" FontSize="10" HorizontalAlignment="Right"/>
+                                </Grid>
+                            </Grid>
+
+                            <!-- Row 2: Controls (Prev, Play, Next) -->
+                            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Button Style="{StaticResource IslandButtonStyle}" Width="36" Height="34" Click="BtnPrev_Click">
+                                    <TextBlock Text="&#xE892;" Style="{StaticResource FluentIconStyle}" FontSize="13" Foreground="#E0E0E0"/>
+                                </Button>
+                                <Button Style="{StaticResource PlayButtonStyle}" Margin="14,0,14,0" Click="BtnPlayPause_Click">
+                                    <TextBlock x:Name="TxtPlayPauseIcon" Text="&#xE769;" Style="{StaticResource FluentIconStyle}" FontSize="13" Margin="0,0,0,0"/>
+                                </Button>
+                                <Button Style="{StaticResource IslandButtonStyle}" Width="36" Height="34" Click="BtnNext_Click">
+                                    <TextBlock Text="&#xE893;" Style="{StaticResource FluentIconStyle}" FontSize="13" Foreground="#E0E0E0"/>
+                                </Button>
+                            </StackPanel>
                         </Grid>
                     </Grid>
 
-                    <!-- Bottom Row: Controls -->
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <Button Style="{StaticResource IslandButtonStyle}" Width="40" Height="36" Click="BtnPrev_Click">
-                            <TextBlock Text="&#xE892;" Style="{StaticResource FluentIconStyle}" FontSize="13" Foreground="#E0E0E0"/>
-                        </Button>
-                        <Button Style="{StaticResource PlayButtonStyle}" Margin="18,0,18,0" Click="BtnPlayPause_Click">
-                            <TextBlock x:Name="TxtPlayPauseIcon" Text="&#xE769;" Style="{StaticResource FluentIconStyle}" FontSize="14" Margin="0,0,0,0"/>
-                        </Button>
-                        <Button Style="{StaticResource IslandButtonStyle}" Width="40" Height="36" Click="BtnNext_Click">
-                            <TextBlock Text="&#xE893;" Style="{StaticResource FluentIconStyle}" FontSize="13" Foreground="#E0E0E0"/>
-                        </Button>
-                    </StackPanel>
+                    <!-- Row 1: Bottom Switch Bar (Nằm gọn ở đáy, căn chính giữa, tách biệt tuyệt đối) -->
+                    <Grid Grid.Row="1" VerticalAlignment="Center">
+                        <Border Height="16" 
+                                Background="#18181B" 
+                                BorderBrush="#2C2C30" 
+                                BorderThickness="1" 
+                                CornerRadius="8" 
+                                Padding="12,0,12,0" 
+                                HorizontalAlignment="Center" 
+                                VerticalAlignment="Center" 
+                                Cursor="Hand" 
+                                ToolTip="Nhấn để chuyển sang Trung tâm điều khiển (hoặc Vuốt / Shift+Cuộn)" 
+                                MouseLeftButtonUp="BtnSwitchToControlCenter_Click">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border Width="5" Height="4" CornerRadius="2" Background="#545458" Margin="2,0,2,0"/>
+                                <Border Width="16" Height="4" CornerRadius="2" Background="#1DB954" Margin="2,0,2,0"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
                 </Grid>
 
                 <!-- 4. FILE DROP VIEW (Hovering files over the island) -->
@@ -614,34 +749,29 @@
                 </Grid>
 
                 <!-- 6. FILE RESULT VIEW (Success / Error notification) -->
-                <Grid x:Name="FileResultView" Visibility="Collapsed" Margin="10,0,10,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
+                <StackPanel x:Name="FileResultView" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
+                    <TextBlock x:Name="TxtResultIcon" Text="&#xE73E;" Style="{StaticResource FluentIconStyle}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="#34C759"/>
+                    <TextBlock x:Name="TxtResultMessage" Text="Đã gửi tệp thành công!" Foreground="#FFFFFF" FontWeight="Medium" FontSize="11" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                </StackPanel>
 
-                    <TextBlock x:Name="TxtResultIcon" Grid.Column="0" Text="&#xE73E;" Style="{StaticResource FluentIconStyle}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="#34C759"/>
-                    <TextBlock x:Name="TxtResultMessage" Grid.Column="1" Text="Đã gửi tệp thành công!" Foreground="#FFFFFF" FontWeight="Medium" FontSize="11" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                </Grid>
-
-                <!-- 7. SLIDER HUD VIEW (Volume & Brightness HUD) -->
+                <!-- 7. SLIDER HUD VIEW (Volume & Brightness HUD cân xứng hoàn hảo) -->
                 <Grid x:Name="SliderHudView" Visibility="Collapsed" Margin="12,0,12,0">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="38"/>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="38"/>
                     </Grid.ColumnDefinitions>
 
                     <!-- Icon (Bấm để Mute/Unmute âm lượng) -->
-                    <Button x:Name="BtnHudIcon" Grid.Column="0" Style="{StaticResource IslandButtonStyle}" Width="28" Height="28" Click="BtnHudIcon_Click" ToolTip="Tắt / Bật tiếng" VerticalAlignment="Center" Margin="0,0,8,0">
-                        <TextBlock x:Name="TxtHudIcon" Text="&#xE994;" Style="{StaticResource FluentIconStyle}" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <Button x:Name="BtnHudIcon" Grid.Column="0" Style="{StaticResource IslandButtonStyle}" Width="26" Height="26" Click="BtnHudIcon_Click" ToolTip="Tắt / Bật tiếng" HorizontalAlignment="Left" VerticalAlignment="Center">
+                        <TextBlock x:Name="TxtHudIcon" Text="&#xE994;" Style="{StaticResource FluentIconStyle}" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Button>
 
-                    <!-- Smooth Slider Track (Bo tròn 4 góc chuẩn Apple Capsule) -->
-                    <ProgressBar x:Name="HudProgressBar" Grid.Column="1" Height="10" Minimum="0" Maximum="100" Value="50" Style="{StaticResource RoundedProgressBarStyle}" VerticalAlignment="Center"/>
+                    <!-- Smooth Slider Track (Bo tròn 4 góc chuẩn Apple Capsule, nằm chính giữa HUD) -->
+                    <ProgressBar x:Name="HudProgressBar" Grid.Column="1" Height="10" Minimum="0" Maximum="100" Value="50" Style="{StaticResource RoundedProgressBarStyle}" VerticalAlignment="Center" Margin="4,0,4,0"/>
 
-                    <!-- Value Percent -->
-                    <TextBlock x:Name="TxtHudValue" Grid.Column="2" Text="50%" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12" Margin="10,0,2,0" VerticalAlignment="Center" Width="36" TextAlignment="Right"/>
+                    <!-- Value Percent (Cân đối hoàn hảo với Icon bên trái) -->
+                    <TextBlock x:Name="TxtHudValue" Grid.Column="2" Text="50%" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center" Width="36" TextAlignment="Right"/>
                 </Grid>
 
                 <!-- 8. LOCK KEY & INPUT METHOD HUD VIEW -->
@@ -654,7 +784,7 @@
 
                     <!-- Icon Badge -->
                     <Border Grid.Column="0" Width="26" Height="26" CornerRadius="13" Background="#1C1C1E" BorderBrush="#2C2C2E" BorderThickness="1" VerticalAlignment="Center" Margin="0,0,8,0">
-                        <TextBlock x:Name="TxtLockKeyIcon" Text="&#xE879;" Style="{StaticResource FluentIconStyle}" FontSize="12" Foreground="#FFFFFF"/>
+                        <TextBlock x:Name="TxtLockKeyIcon" Text="&#xE879;" Style="{StaticResource FluentIconStyle}" FontSize="12" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
 
                     <!-- Info (Title & Subtitle) -->
@@ -664,8 +794,8 @@
                     </StackPanel>
 
                     <!-- Status Pill Badge -->
-                    <Border x:Name="LockKeyBadge" Grid.Column="2" Background="#152A1C" BorderBrush="#245832" BorderThickness="1" CornerRadius="10" Padding="8,2,8,2" VerticalAlignment="Center">
-                        <TextBlock x:Name="TxtLockKeyStatus" Text="BẬT" Foreground="#34C759" FontWeight="Bold" FontSize="10"/>
+                    <Border x:Name="LockKeyBadge" Grid.Column="2" Height="22" Background="#152A1C" BorderBrush="#245832" BorderThickness="1" CornerRadius="11" Padding="8,0,8,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="TxtLockKeyStatus" Text="BẬT" Foreground="#34C759" FontWeight="Bold" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                 </Grid>
             </Grid>

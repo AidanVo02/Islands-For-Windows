@@ -6,7 +6,10 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using System.Windows.Threading;
+using System.Runtime.InteropServices;
+using System.Windows.Interop;
 using Screen = System.Windows.Forms.Screen;
 using Point = System.Windows.Point;
 using DynamicIsland.Services;
@@ -36,6 +39,15 @@ namespace DynamicIsland
 
         private IslandMode _currentMode = IslandMode.Idle;
         private bool _isMediaActive = false;
+        private DateTime _lastViewSwitchTime = DateTime.MinValue;
+
+        // Quản lý phát nhạc & Live Lyrics theo thời gian thực
+        private readonly DispatcherTimer _playbackProgressTimer = new();
+        private TimeSpan _currentPosition = TimeSpan.Zero;
+        private TimeSpan _currentDuration = TimeSpan.Zero;
+        private bool _isPlaying = false;
+        private string _currentTrackTitle = "";
+        private string _currentArtist = "";
 
         // Quản lý HUD & Control Center Âm lượng / Độ sáng
         private readonly DispatcherTimer _hudAutoDismissTimer = new();
@@ -54,6 +66,8 @@ namespace DynamicIsland
         // Quản lý kéo thả / click
         private Point _startPoint;
         private bool _isDragging = false;
+        private bool _dragAttempted = false;
+        private bool _isInteractingWithControl = false;
 
         // Quản lý Tự động ẩn (Auto-Hide)
         private bool _isIslandHidden = false;
@@ -123,6 +137,12 @@ namespace DynamicIsland
                 _batteryService.BatteryChanged += BatteryService_BatteryChanged;
                 _batteryService.Initialize();
 
+                // Khởi động bộ đếm vị trí phát nhạc (250ms) & Live Lyrics (Đăng ký trước khi init media để không bị mất event)
+                _playbackProgressTimer.Interval = TimeSpan.FromMilliseconds(250);
+                _playbackProgressTimer.Tick += PlaybackProgressTimer_Tick;
+                LyricsService.Instance.ActiveLinesChanged += LyricsService_ActiveLinesChanged;
+                LyricsService.Instance.LyricsLoaded += LyricsService_LyricsLoaded;
+
                 // Khởi động dịch vụ Bắt nhạc Windows
                 _mediaService.MediaTrackChanged += MediaService_MediaTrackChanged;
                 _mediaService.PlaybackStateChanged += MediaService_PlaybackStateChanged;
@@ -142,11 +162,57 @@ namespace DynamicIsland
                 _lockKeyDismissTimer.Tick += LockKeyDismissTimer_Tick;
                 LockKeyService.Instance.LockKeyChanged += LockKeyService_LockKeyChanged;
                 LockKeyService.Instance.Start();
+
+                // Tự động thu nhỏ khi mất tiêu điểm cửa sổ (Deactivated)
+                Deactivated += (s, args) =>
+                {
+                    if (_currentMode == IslandMode.Expanded || _currentMode == IslandMode.ExpandedMedia)
+                    {
+                        if (SettingsWindow.IsCursorOverSettings(new Win32Helper.POINT())) return;
+                        CollapseToDefault();
+                    }
+                };
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Window_Loaded error: {ex}");
             }
+        }
+
+        protected override void OnSourceInitialized(EventArgs e)
+        {
+            base.OnSourceInitialized(e);
+            var source = PresentationSource.FromVisual(this) as HwndSource;
+            source?.AddHook(WndProc);
+        }
+
+        private const int WM_MOUSEHWHEEL = 0x020E;
+
+        private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            if (msg == WM_MOUSEHWHEEL)
+            {
+                if (_currentMode == IslandMode.Expanded || _currentMode == IslandMode.ExpandedMedia)
+                {
+                    short delta = (short)((wParam.ToInt64() >> 16) & 0xFFFF);
+                    if (delta != 0)
+                    {
+                        if ((DateTime.Now - _lastViewSwitchTime).TotalMilliseconds > 300)
+                        {
+                            _lastViewSwitchTime = DateTime.Now;
+                            SwitchExpandedView();
+                        }
+                        handled = true;
+                        return IntPtr.Zero;
+                    }
+                }
+            }
+            return IntPtr.Zero;
+        }
+
+        private void Window_Closed(object? sender, EventArgs e)
+        {
+            StopOutsideClickHook();
         }
 
         private void SettingsService_SettingsChanged(IslandSettings settings)
@@ -206,6 +272,11 @@ namespace DynamicIsland
 
             Topmost = s.AlwaysOnTop;
 
+            if (MenuLockPosition != null)
+            {
+                MenuLockPosition.IsChecked = s.LockPosition;
+            }
+
             if (MenuAutoHide != null)
             {
                 MenuAutoHide.IsChecked = s.AutoHide;
@@ -263,6 +334,7 @@ namespace DynamicIsland
         {
             _screens = Screen.AllScreens;
             MenuMonitors.Items.Clear();
+            MenuLockPosition.IsChecked = SettingsService.Instance.Current.LockPosition;
             MenuAutoHide.IsChecked = SettingsService.Instance.Current.AutoHide;
 
             for (int i = 0; i < _screens.Length; i++)
@@ -445,6 +517,14 @@ namespace DynamicIsland
                 {
                     var s = SettingsService.Instance.Current;
                     _isMediaActive = !string.IsNullOrWhiteSpace(track.Title) && track.Title != "No Media Playing";
+                    _isPlaying = track.IsPlaying;
+                    _currentTrackTitle = track.Title ?? "";
+                    _currentArtist = track.Artist ?? "";
+                    _currentPosition = track.Position;
+                    _currentDuration = track.Duration;
+
+                    TxtElapsed.Text = FormatTime(_currentPosition);
+                    TxtDuration.Text = FormatTime(_currentDuration);
 
                     TxtMiniTitle.Text = track.Title ?? "";
                     ImgMiniThumb.Source = track.Thumbnail;
@@ -463,29 +543,53 @@ namespace DynamicIsland
 
                     UpdatePlaybackIcon(track.IsPlaying);
 
-                    if (_isMediaActive && track.IsPlaying)
+                    if (_isMediaActive)
                     {
-                        if (s.EqualizerEnabled)
+                        // Reset UI Live Lyrics trước khi tải lời bài hát mới
+                        TxtLyricPrev.Text = "";
+                        TxtLyricCurrent.Text = "Đang tải lời bài hát...";
+                        TxtLyricNext.Text = "";
+                        TxtLyricsStatus.Text = "Đang tìm...";
+                        PanelLyricsSynced.Visibility = Visibility.Visible;
+                        PanelLyricsEmpty.Visibility = Visibility.Collapsed;
+
+                        // Gọi API LRCLIB tải lời bài hát đồng bộ
+                        _ = LyricsService.Instance.LoadLyricsAsync(_currentTrackTitle, _currentArtist, _currentDuration.TotalSeconds);
+
+                        if (track.IsPlaying)
                         {
-                            _equalizerTimer.Start();
+                            _playbackProgressTimer.Start();
+                            if (s.EqualizerEnabled)
+                            {
+                                _equalizerTimer.Start();
+                            }
+                            if (_currentMode == IslandMode.Idle && s.AutoSwitchMedia)
+                            {
+                                SwitchMode(IslandMode.MediaCompact);
+                            }
                         }
-                        if (_currentMode == IslandMode.Idle && s.AutoSwitchMedia)
+                        else
                         {
-                            SwitchMode(IslandMode.MediaCompact);
+                            _playbackProgressTimer.Stop();
+                            _equalizerTimer.Stop();
                         }
                     }
-                    else if (!_isMediaActive)
+                    else
                     {
+                        _playbackProgressTimer.Stop();
                         _equalizerTimer.Stop();
+                        TxtLyricPrev.Text = "";
+                        TxtLyricCurrent.Text = "";
+                        TxtLyricNext.Text = "";
+                        TxtLyricsStatus.Text = "";
+                        PanelLyricsSynced.Visibility = Visibility.Collapsed;
+                        PanelLyricsEmpty.Visibility = Visibility.Visible;
+                        TxtLyricsEmptyMessage.Text = "Không có trình phát nào đang mở";
+
                         if (_currentMode != IslandMode.Expanded)
                         {
                             SwitchMode(IslandMode.Idle);
                         }
-                    }
-
-                    if (BtnSwitchToMedia != null)
-                    {
-                        BtnSwitchToMedia.Visibility = _isMediaActive ? Visibility.Visible : Visibility.Collapsed;
                     }
                 }
                 catch (Exception ex)
@@ -502,9 +606,11 @@ namespace DynamicIsland
                 try
                 {
                     var s = SettingsService.Instance.Current;
+                    _isPlaying = isPlaying;
                     UpdatePlaybackIcon(isPlaying);
                     if (isPlaying)
                     {
+                        _playbackProgressTimer.Start();
                         if (s.EqualizerEnabled)
                         {
                             _equalizerTimer.Start();
@@ -516,6 +622,7 @@ namespace DynamicIsland
                     }
                     else
                     {
+                        _playbackProgressTimer.Stop();
                         _equalizerTimer.Stop();
                         ResetEqualizerBars();
                     }
@@ -533,6 +640,9 @@ namespace DynamicIsland
             {
                 try
                 {
+                    _currentPosition = position;
+                    _currentDuration = duration;
+
                     TxtElapsed.Text = FormatTime(position);
                     TxtDuration.Text = FormatTime(duration);
 
@@ -544,12 +654,117 @@ namespace DynamicIsland
                     {
                         MediaProgressBar.Value = 0;
                     }
+
+                    LyricsService.Instance.UpdatePlaybackPosition(position);
                 }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"TimelineChanged error: {ex.Message}");
                 }
             });
+        }
+
+        private void PlaybackProgressTimer_Tick(object? sender, EventArgs e)
+        {
+            if (!_isPlaying || !_isMediaActive) return;
+
+            _currentPosition += TimeSpan.FromMilliseconds(250);
+            if (_currentDuration > TimeSpan.Zero && _currentPosition > _currentDuration)
+            {
+                _currentPosition = _currentDuration;
+            }
+
+            TxtElapsed.Text = FormatTime(_currentPosition);
+            if (_currentDuration.TotalSeconds > 0)
+            {
+                MediaProgressBar.Value = (_currentPosition.TotalSeconds / _currentDuration.TotalSeconds) * 100.0;
+            }
+
+            LyricsService.Instance.UpdatePlaybackPosition(_currentPosition);
+        }
+
+        private void LyricsService_ActiveLinesChanged(LyricLine? prev, LyricLine? current, LyricLine? next)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (current != null && !string.IsNullOrWhiteSpace(current.Text))
+                {
+                    // 1. Cập nhật trong Expanded View (Apple Music 3-line style)
+                    TxtLyricPrev.Text = prev?.Text ?? "";
+                    TxtLyricCurrent.Text = current.Text;
+                    TxtLyricNext.Text = next?.Text ?? "";
+
+                    // 2. Cập nhật trong Compact View (Hiển thị 1 dòng lời bài hát đang hát chạy ngang)
+                    if (_isMediaActive && _isPlaying)
+                    {
+                        TxtMiniTitle.Text = current.Text == "•••" ? _currentTrackTitle : $"♪ {current.Text}";
+                    }
+                }
+                else
+                {
+                    TxtLyricPrev.Text = prev?.Text ?? "";
+                    TxtLyricCurrent.Text = "•••";
+                    TxtLyricNext.Text = next?.Text ?? "";
+
+                    if (_isMediaActive && !string.IsNullOrWhiteSpace(_currentTrackTitle))
+                    {
+                        TxtMiniTitle.Text = _currentTrackTitle;
+                    }
+                }
+            });
+        }
+
+        private void LyricsService_LyricsLoaded(SongLyrics lyrics)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                RefreshLyricsUI();
+            });
+        }
+
+        private void RefreshLyricsUI()
+        {
+            var lyrics = LyricsService.Instance.CurrentLyrics;
+            if (lyrics != null && lyrics.HasSyncedLyrics)
+            {
+                PanelLyricsSynced.Visibility = Visibility.Visible;
+                PanelLyricsEmpty.Visibility = Visibility.Collapsed;
+                TxtLyricsStatus.Text = "LRCLIB • Đã khớp";
+                TxtLyricsStatus.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x1D, 0xB9, 0x54));
+
+                var (prev, current, next) = LyricsService.Instance.GetActiveLines(_currentPosition);
+                TxtLyricPrev.Text = prev?.Text ?? "";
+                TxtLyricCurrent.Text = current?.Text ?? "•••";
+                TxtLyricNext.Text = next?.Text ?? "";
+
+                if (current != null && !string.IsNullOrWhiteSpace(current.Text) && current.Text != "•••" && _isPlaying)
+                {
+                    TxtMiniTitle.Text = $"♪ {current.Text}";
+                }
+            }
+            else if (lyrics != null && !string.IsNullOrWhiteSpace(lyrics.PlainLyrics))
+            {
+                PanelLyricsSynced.Visibility = Visibility.Visible;
+                PanelLyricsEmpty.Visibility = Visibility.Collapsed;
+                TxtLyricsStatus.Text = "LRCLIB • Lời thường";
+                TxtLyricsStatus.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x8E, 0x8E, 0x93));
+
+                var lines = lyrics.PlainLyrics.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                TxtLyricPrev.Text = lines.Length > 0 ? lines[0] : "";
+                TxtLyricCurrent.Text = lines.Length > 1 ? lines[1] : (lines.Length > 0 ? lines[0] : "");
+                TxtLyricNext.Text = lines.Length > 2 ? lines[2] : "";
+
+                TxtMiniTitle.Text = _currentTrackTitle;
+            }
+            else if (lyrics != null && lyrics.IsNotFound)
+            {
+                PanelLyricsSynced.Visibility = Visibility.Collapsed;
+                PanelLyricsEmpty.Visibility = Visibility.Visible;
+                TxtLyricsEmptyMessage.Text = "Không có lời bài hát đồng bộ";
+                TxtLyricsStatus.Text = "";
+
+                TxtMiniTitle.Text = _currentTrackTitle;
+            }
         }
 
         private string FormatTime(TimeSpan time)
@@ -609,32 +824,41 @@ namespace DynamicIsland
             switch (newMode)
             {
                 case IslandMode.Idle:
-                    targetWidth = s.IdleWidth;
+                    bool idlePrivActive = (PrivacyService.Instance.IsMicrophoneInUse || PrivacyService.Instance.IsCameraInUse) && s.EnablePrivacyIndicators;
+                    targetWidth = idlePrivActive ? Math.Max(s.IdleWidth + 35, 225) : s.IdleWidth;
                     targetHeight = s.IdleHeight;
                     targetRadius = s.CornerRadius;
                     CompactIdleView.Visibility = Visibility.Visible;
                     break;
 
                 case IslandMode.MediaCompact:
-                    targetWidth = Math.Max(s.IdleWidth + 80, 270);
+                    targetWidth = Math.Max(s.IdleWidth + 120, 310);
                     targetHeight = s.IdleHeight;
                     targetRadius = s.CornerRadius;
                     CompactMediaView.Visibility = Visibility.Visible;
                     break;
 
                 case IslandMode.Expanded:
-                    targetWidth = Math.Max(s.ExpandedWidth, 380);
-                    targetHeight = 175;
+                    bool expPrivActive = (PrivacyService.Instance.IsMicrophoneInUse || PrivacyService.Instance.IsCameraInUse) && s.EnablePrivacyIndicators;
+                    targetWidth = expPrivActive ? Math.Max(s.ExpandedWidth, 400) + 55 : Math.Max(s.ExpandedWidth, 400);
+                    targetHeight = 180;
                     targetRadius = 26;
                     ExpandedControlCenterView.Visibility = Visibility.Visible;
+                    var fadeInControl = new DoubleAnimation(0.2, 1.0, TimeSpan.FromMilliseconds(200));
+                    ExpandedControlCenterView.BeginAnimation(UIElement.OpacityProperty, fadeInControl);
                     UpdateControlCenterContent();
                     break;
 
                 case IslandMode.ExpandedMedia:
-                    targetWidth = s.ExpandedWidth;
-                    targetHeight = s.ExpandedHeight;
-                    targetRadius = s.CornerRadius + 10;
+                    bool expMediaPrivActive = (PrivacyService.Instance.IsMicrophoneInUse || PrivacyService.Instance.IsCameraInUse) && s.EnablePrivacyIndicators;
+                    // Tự động kéo giãn đảo (Dynamic Morphing) sang 680px (hoặc 730px khi có privacy) và cao 225px để bố cục 2 cột Lyrics & Song Info to rõ, vừa vặn không bị lệch
+                    targetWidth = expMediaPrivActive ? 730 : 680;
+                    targetHeight = 225;
+                    targetRadius = 28;
                     ExpandedMediaView.Visibility = Visibility.Visible;
+                    var fadeInMedia = new DoubleAnimation(0.2, 1.0, TimeSpan.FromMilliseconds(200));
+                    ExpandedMediaView.BeginAnimation(UIElement.OpacityProperty, fadeInMedia);
+                    RefreshLyricsUI();
                     break;
 
                 case IslandMode.FileDropHover:
@@ -681,6 +905,16 @@ namespace DynamicIsland
             }
 
             AnimateIsland(targetWidth, targetHeight, targetRadius);
+
+            // Bật Hook bắt sự kiện click ra ngoài khi mở Expanded View
+            if (newMode == IslandMode.Expanded || newMode == IslandMode.ExpandedMedia)
+            {
+                StartOutsideClickHook();
+            }
+            else
+            {
+                StopOutsideClickHook();
+            }
         }
 
         private void AnimateIsland(double width, double height, double cornerRadius)
@@ -771,22 +1005,145 @@ namespace DynamicIsland
             StartAutoHideTimer();
         }
 
+        private static bool IsInteractiveControl(DependencyObject? obj)
+        {
+            while (obj != null)
+            {
+                if (obj is System.Windows.Controls.Slider ||
+                    obj is System.Windows.Controls.Primitives.Thumb ||
+                    obj is System.Windows.Controls.Primitives.RepeatButton ||
+                    obj is System.Windows.Controls.Primitives.ButtonBase ||
+                    obj is System.Windows.Controls.TextBox ||
+                    obj is System.Windows.Controls.ProgressBar)
+                {
+                    return true;
+                }
+
+                if (obj is FrameworkElement fe)
+                {
+                    if (fe.Name == "MicPrivacyDot" || 
+                        fe.Name == "CameraPrivacyDot" || 
+                        fe.Name == "ExpPrivacyBadge" ||
+                        fe.Name == "SliderExpVolume" || 
+                        fe.Name == "SliderExpBrightness" ||
+                        fe.Name == "ExpandedCardVolume" ||
+                        fe.Name == "ExpandedCardBrightness" ||
+                        fe.Tag?.ToString() == "Interactive")
+                    {
+                        return true;
+                    }
+                    if (fe.Name == "IslandContainer")
+                    {
+                        break;
+                    }
+                }
+
+                if (obj is Window)
+                {
+                    break;
+                }
+
+                if (obj is Visual || obj is System.Windows.Media.Media3D.Visual3D)
+                {
+                    obj = VisualTreeHelper.GetParent(obj);
+                }
+                else
+                {
+                    obj = LogicalTreeHelper.GetParent(obj);
+                }
+            }
+            return false;
+        }
+
+        private void SaveCurrentPositionAfterDrag()
+        {
+            try
+            {
+                if (_screens.Length == 0 || _currentScreenIndex < 0 || _currentScreenIndex >= _screens.Length)
+                    return;
+
+                var screen = _screens[_currentScreenIndex];
+                var source = PresentationSource.FromVisual(this);
+                double dpiX = source?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
+                double dpiY = source?.CompositionTarget?.TransformToDevice.M22 ?? 1.0;
+
+                int physicalWidth = (int)(this.ActualWidth * dpiX);
+                int physicalLeft = (int)(this.Left * dpiX);
+                int physicalTop = (int)(this.Top * dpiY);
+
+                int centerBaseX = screen.Bounds.X + (screen.Bounds.Width - physicalWidth) / 2;
+                double newHorizontalOffset = (physicalLeft - centerBaseX) / dpiX;
+                double newTopOffset = Math.Max(0, (physicalTop - screen.Bounds.Y) / dpiY);
+
+                SettingsService.Instance.Update(s =>
+                {
+                    s.HorizontalOffset = Math.Round(newHorizontalOffset);
+                    s.TopOffset = Math.Round(newTopOffset);
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"SaveCurrentPositionAfterDrag error: {ex.Message}");
+            }
+        }
+
         private void IslandContainer_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (_isFileTransferInProgress || _currentMode == IslandMode.FileTransferring || _currentMode == IslandMode.SliderHud) return;
 
-            _startPoint = e.GetPosition(this);
+            _isInteractingWithControl = IsInteractiveControl(e.OriginalSource as DependencyObject);
+            _dragAttempted = false;
             _isDragging = false;
+
+            if (_isInteractingWithControl)
+            {
+                return;
+            }
+
+            _startPoint = e.GetPosition(this);
         }
 
         private void IslandContainer_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
         {
+            if (_isInteractingWithControl) return;
+
             if (e.LeftButton == MouseButtonState.Pressed && !_isDragging)
             {
                 Point currentPoint = e.GetPosition(this);
                 Vector diff = _startPoint - currentPoint;
+
+                // Nếu đang ở Expanded View: Nhận diện cử chỉ vuốt ngang để chuyển tab
+                if (_currentMode == IslandMode.Expanded || _currentMode == IslandMode.ExpandedMedia)
+                {
+                    if (Math.Abs(diff.X) > 40 && Math.Abs(diff.X) > Math.Abs(diff.Y) * 1.3)
+                    {
+                        if ((DateTime.Now - _lastViewSwitchTime).TotalMilliseconds > 350)
+                        {
+                            _lastViewSwitchTime = DateTime.Now;
+                            SwitchExpandedView();
+                            _dragAttempted = false;
+                            return;
+                        }
+                    }
+                }
+
                 if (Math.Abs(diff.X) > 6 || Math.Abs(diff.Y) > 6)
                 {
+                    _dragAttempted = true;
+
+                    var s = SettingsService.Instance.Current;
+                    if (s.LockPosition)
+                    {
+                        // Vị trí đã bị khóa -> không cho phép kéo di chuyển cửa sổ
+                        return;
+                    }
+
+                    // Không kéo di chuyển cửa sổ khi đang ở Expanded View để ưu tiên cử chỉ vuốt và tương tác UI
+                    if (_currentMode == IslandMode.Expanded || _currentMode == IslandMode.ExpandedMedia)
+                    {
+                        return;
+                    }
+
                     _isDragging = true;
                     try
                     {
@@ -796,13 +1153,26 @@ namespace DynamicIsland
                     {
                         // Bỏ qua lỗi ngắt DragMove khi nhả chuột
                     }
+                    finally
+                    {
+                        _isDragging = false;
+                        SaveCurrentPositionAfterDrag();
+                    }
                 }
             }
         }
 
         private void IslandContainer_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
-            if (!_isDragging)
+            if (_isInteractingWithControl)
+            {
+                _isInteractingWithControl = false;
+                _isDragging = false;
+                _dragAttempted = false;
+                return;
+            }
+
+            if (!_isDragging && !_dragAttempted)
             {
                 if (_isFileTransferInProgress || 
                     _currentMode == IslandMode.FileTransferring || 
@@ -810,22 +1180,120 @@ namespace DynamicIsland
                     _currentMode == IslandMode.SliderHud)
                 {
                     _isDragging = false;
+                    _dragAttempted = false;
                     return;
                 }
 
-                // Click hợp lệ: Mở rộng Control Center
+                // Click hợp lệ: Mở rộng Media Player nếu có media, ngược lại mở Control Center
                 if (_currentMode != IslandMode.Expanded && _currentMode != IslandMode.ExpandedMedia)
                 {
-                    SwitchMode(IslandMode.Expanded);
+                    SwitchMode(_isMediaActive ? IslandMode.ExpandedMedia : IslandMode.Expanded);
                 }
             }
             _isDragging = false;
+            _dragAttempted = false;
         }
 
         private void BtnCollapse_Click(object sender, RoutedEventArgs e)
         {
-            SwitchMode(_isMediaActive ? IslandMode.MediaCompact : IslandMode.Idle);
+            CollapseToDefault();
+        }
+
+        public void CollapseToDefault()
+        {
+            if (_currentMode != IslandMode.Expanded && _currentMode != IslandMode.ExpandedMedia)
+                return;
+
+            SwitchMode(_isMediaActive && SettingsService.Instance.Current.AutoSwitchMedia ? IslandMode.MediaCompact : IslandMode.Idle);
             StartAutoHideTimer();
+        }
+        #endregion
+
+        #region Outside Click to Collapse (Tự động thu nhỏ khi click ra ngoài vùng Island)
+        private const int WH_MOUSE_LL = 14;
+        private const int WM_LBUTTONDOWN = 0x0201;
+        private const int WM_RBUTTONDOWN = 0x0204;
+        private const int WM_NCLBUTTONDOWN = 0x00A1;
+        private const int WM_NCRBUTTONDOWN = 0x00A4;
+
+        private delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
+        private IntPtr _mouseHookId = IntPtr.Zero;
+        private LowLevelMouseProc? _mouseProc;
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelMouseProc lpfn, IntPtr hMod, uint dwThreadId);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr GetModuleHandle(string? lpModuleName);
+
+        private void StartOutsideClickHook()
+        {
+            if (_mouseHookId != IntPtr.Zero) return;
+
+            _mouseProc = OutsideMouseHookCallback;
+            using var curProcess = System.Diagnostics.Process.GetCurrentProcess();
+            using var curModule = curProcess.MainModule;
+            if (curModule?.ModuleName != null)
+            {
+                _mouseHookId = SetWindowsHookEx(WH_MOUSE_LL, _mouseProc, GetModuleHandle(curModule.ModuleName), 0);
+            }
+        }
+
+        private void StopOutsideClickHook()
+        {
+            if (_mouseHookId != IntPtr.Zero)
+            {
+                UnhookWindowsHookEx(_mouseHookId);
+                _mouseHookId = IntPtr.Zero;
+            }
+        }
+
+        private IntPtr OutsideMouseHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (nCode >= 0)
+            {
+                int msg = wParam.ToInt32();
+                if (msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN || msg == WM_NCLBUTTONDOWN || msg == WM_NCRBUTTONDOWN)
+                {
+                    if (Win32Helper.GetCursorPos(out var pt))
+                    {
+                        if (!IsCursorOverIsland(pt) && !SettingsWindow.IsCursorOverSettings(pt))
+                        {
+                            Dispatcher.BeginInvoke(new Action(() =>
+                            {
+                                if (IslandContextMenu != null && IslandContextMenu.IsOpen)
+                                    return;
+
+                                CollapseToDefault();
+                            }));
+                        }
+                    }
+                }
+            }
+
+            return CallNextHookEx(_mouseHookId, nCode, wParam, lParam);
+        }
+
+        private bool IsCursorOverIsland(Win32Helper.POINT pt)
+        {
+            try
+            {
+                if (IslandContainer == null || !IslandContainer.IsVisible) return false;
+                Point localPt = IslandContainer.PointFromScreen(new Point(pt.X, pt.Y));
+                return localPt.X >= 0 && localPt.X <= IslandContainer.ActualWidth &&
+                       localPt.Y >= 0 && localPt.Y <= IslandContainer.ActualHeight;
+            }
+            catch
+            {
+                return IslandContainer?.IsMouseOver ?? false;
+            }
         }
         #endregion
 
@@ -879,13 +1347,18 @@ namespace DynamicIsland
             }
             else
             {
-                SwitchMode(IslandMode.Expanded);
+                SwitchMode(_isMediaActive ? IslandMode.ExpandedMedia : IslandMode.Expanded);
             }
         }
 
         private void MenuExit_Click(object sender, RoutedEventArgs e)
         {
             System.Windows.Application.Current.Shutdown();
+        }
+
+        private void MenuLockPosition_Click(object sender, RoutedEventArgs e)
+        {
+            SettingsService.Instance.Update(s => s.LockPosition = MenuLockPosition.IsChecked);
         }
 
         private void MenuAutoHide_Click(object sender, RoutedEventArgs e)
@@ -1262,12 +1735,34 @@ namespace DynamicIsland
             _autoHideTimer.Stop();
             if (_isIslandHidden) ShowIsland();
 
+            // 1. Kiểm tra giữ phím Shift khi đang ở Expanded View: Chuyển đổi qua lại giữa Control Center và Media Player
+            bool isShift = Win32Helper.IsKeyDown(0x10) || // VK_SHIFT (Shift key toàn hệ thống)
+                           Keyboard.IsKeyDown(Key.LeftShift) || 
+                           Keyboard.IsKeyDown(Key.RightShift) || 
+                           (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+
+            if (isShift && (_currentMode == IslandMode.Expanded || _currentMode == IslandMode.ExpandedMedia))
+            {
+                if ((DateTime.Now - _lastViewSwitchTime).TotalMilliseconds > 300)
+                {
+                    _lastViewSwitchTime = DateTime.Now;
+                    SwitchExpandedView();
+                }
+                return;
+            }
+
             bool isAlt = Win32Helper.IsKeyDown(0x12) || // VK_MENU (Alt key toàn hệ thống)
                          Keyboard.IsKeyDown(Key.LeftAlt) || 
                          Keyboard.IsKeyDown(Key.RightAlt) || 
                          (Keyboard.Modifiers & ModifierKeys.Alt) != 0;
 
-            if (isAlt)
+            bool isOverBrightness = false;
+            if (SliderExpBrightness != null && (SliderExpBrightness.IsMouseOver || (ExpandedCardBrightness != null && ExpandedCardBrightness.IsMouseOver)))
+            {
+                isOverBrightness = true;
+            }
+
+            if (isAlt || isOverBrightness)
             {
                 // Điều chỉnh độ sáng màn hình
                 int delta = e.Delta > 0 ? 5 : -5;
@@ -1280,6 +1775,44 @@ namespace DynamicIsland
                 VolumeService.Instance.AdjustVolume(delta);
             }
         }
+
+        #region Touchpad & Touch Manipulation Gestures
+        private void IslandContainer_ManipulationStarting(object sender, ManipulationStartingEventArgs e)
+        {
+            e.ManipulationContainer = IslandContainer;
+            e.Mode = ManipulationModes.TranslateX;
+            e.Handled = true;
+        }
+
+        private void IslandContainer_ManipulationDelta(object sender, ManipulationDeltaEventArgs e)
+        {
+            if (_currentMode == IslandMode.Expanded || _currentMode == IslandMode.ExpandedMedia)
+            {
+                double diffX = e.CumulativeManipulation.Translation.X;
+                if (Math.Abs(diffX) > 35)
+                {
+                    if ((DateTime.Now - _lastViewSwitchTime).TotalMilliseconds > 320)
+                    {
+                        _lastViewSwitchTime = DateTime.Now;
+                        SwitchExpandedView();
+                    }
+                    e.Handled = true;
+                }
+            }
+        }
+
+        private void SwitchExpandedView()
+        {
+            if (_currentMode == IslandMode.Expanded)
+            {
+                SwitchMode(IslandMode.ExpandedMedia);
+            }
+            else if (_currentMode == IslandMode.ExpandedMedia)
+            {
+                SwitchMode(IslandMode.Expanded);
+            }
+        }
+        #endregion
 
         private void VolumeService_VolumeChanged(object? sender, VolumeChangedEventArgs e)
         {
@@ -1416,15 +1949,20 @@ namespace DynamicIsland
             int bri = BrightnessService.Instance.GetBrightness();
             UpdateExpBrightnessUI(bri);
 
-            if (BtnSwitchToMedia != null)
-            {
-                BtnSwitchToMedia.Visibility = _isMediaActive ? Visibility.Visible : Visibility.Collapsed;
-            }
-
             if (TxtExpClock != null)
             {
                 TxtExpClock.Text = DateTime.Now.ToString(SettingsService.Instance.Current.Use24HourClock ? "HH:mm" : "hh:mm tt");
             }
+
+            // Đồng bộ trạng thái Privacy và Mic Mute ngay khi mở Control Center
+            UpdateControlCenterPrivacyUI(new PrivacyStatusChangedEventArgs
+            {
+                IsMicrophoneInUse = PrivacyService.Instance.IsMicrophoneInUse,
+                MicrophoneApps = PrivacyService.Instance.MicrophoneApps,
+                IsCameraInUse = PrivacyService.Instance.IsCameraInUse,
+                CameraApps = PrivacyService.Instance.CameraApps,
+                IsMicrophoneMuted = PrivacyService.Instance.IsMicrophoneMuted
+            });
         }
 
         private void UpdateExpVolumeUI(int percent, bool isMuted)
@@ -1433,7 +1971,10 @@ namespace DynamicIsland
             _isUpdatingSliders = true;
             try
             {
-                SliderExpVolume.Value = percent;
+                if (!SliderExpVolume.IsMouseCaptured)
+                {
+                    SliderExpVolume.Value = percent;
+                }
                 TxtExpVolumePercent.Text = $"{percent}%";
                 if (isMuted || percent == 0)
                 {
@@ -1476,7 +2017,10 @@ namespace DynamicIsland
             try
             {
                 var sunBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0xD5, 0x4F)); // Sun Gold #FFD54F
-                SliderExpBrightness.Value = percent;
+                if (!SliderExpBrightness.IsMouseCaptured)
+                {
+                    SliderExpBrightness.Value = percent;
+                }
                 TxtExpBrightnessPercent.Text = $"{percent}%";
                 SliderExpBrightness.Foreground = sunBrush;
                 TxtExpBrightnessPercent.Foreground = sunBrush;
@@ -1485,6 +2029,46 @@ namespace DynamicIsland
             {
                 _isUpdatingSliders = false;
             }
+        }
+
+        private void Slider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Slider slider)
+            {
+                slider.CaptureMouse();
+                UpdateSliderValueFromMouse(slider, e.GetPosition(slider));
+                e.Handled = true;
+            }
+        }
+
+        private void Slider_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (sender is Slider slider && slider.IsMouseCaptured && e.LeftButton == MouseButtonState.Pressed)
+            {
+                UpdateSliderValueFromMouse(slider, e.GetPosition(slider));
+                e.Handled = true;
+            }
+        }
+
+        private void Slider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Slider slider && slider.IsMouseCaptured)
+            {
+                slider.ReleaseMouseCapture();
+                e.Handled = true;
+            }
+        }
+
+        private void UpdateSliderValueFromMouse(Slider slider, Point pos)
+        {
+            double thumbRadius = 12;
+            double trackWidth = slider.ActualWidth - 2 * thumbRadius;
+            if (trackWidth <= 0) return;
+
+            double x = pos.X - thumbRadius;
+            double ratio = Math.Clamp(x / trackWidth, 0.0, 1.0);
+            double newVal = slider.Minimum + ratio * (slider.Maximum - slider.Minimum);
+            slider.Value = newVal;
         }
 
         private void SliderExpVolume_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -1580,6 +2164,21 @@ namespace DynamicIsland
 
                     // 3. Nút Global Mic Mute & Huy hiệu Privacy trong Trung tâm điều khiển
                     UpdateControlCenterPrivacyUI(e);
+
+                    // 4. Tự động co giãn kích thước Dynamic Island khi phát hiện hoặc tắt Cam / Mic
+                    var s = SettingsService.Instance.Current;
+                    bool isAnyPrivacyActive = (e.IsMicrophoneInUse || e.IsCameraInUse) && showPrivacy;
+
+                    if (_currentMode == IslandMode.Expanded)
+                    {
+                        double targetWidth = isAnyPrivacyActive ? Math.Max(s.ExpandedWidth, 400) + 55 : Math.Max(s.ExpandedWidth, 400);
+                        AnimateIsland(targetWidth, 180, 26);
+                    }
+                    else if (_currentMode == IslandMode.Idle)
+                    {
+                        double targetWidth = isAnyPrivacyActive ? Math.Max(s.IdleWidth + 35, 225) : s.IdleWidth;
+                        AnimateIsland(targetWidth, s.IdleHeight, s.CornerRadius);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -1588,56 +2187,264 @@ namespace DynamicIsland
             });
         }
 
+        private Storyboard? _privacyPulseStoryboard;
+
+        private void StartPrivacyPulseAnimation()
+        {
+            if (_privacyPulseStoryboard == null)
+            {
+                _privacyPulseStoryboard = new Storyboard
+                {
+                    RepeatBehavior = RepeatBehavior.Forever,
+                    AutoReverse = true
+                };
+
+                // Pulse 1: Chấm tròn mở rộng nhịp nhàng (Scale 0.85 -> 1.25)
+                if (ExpDotScale != null)
+                {
+                    var scaleXAnim = new DoubleAnimation(0.85, 1.25, TimeSpan.FromMilliseconds(900))
+                    {
+                        EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+                    };
+                    Storyboard.SetTarget(scaleXAnim, ExpDotScale);
+                    Storyboard.SetTargetProperty(scaleXAnim, new PropertyPath(ScaleTransform.ScaleXProperty));
+                    _privacyPulseStoryboard.Children.Add(scaleXAnim);
+
+                    var scaleYAnim = new DoubleAnimation(0.85, 1.25, TimeSpan.FromMilliseconds(900))
+                    {
+                        EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+                    };
+                    Storyboard.SetTarget(scaleYAnim, ExpDotScale);
+                    Storyboard.SetTargetProperty(scaleYAnim, new PropertyPath(ScaleTransform.ScaleYProperty));
+                    _privacyPulseStoryboard.Children.Add(scaleYAnim);
+                }
+
+                // Pulse 2: Chấm tròn glow phát sáng mạnh dần (Blur 6 -> 14, Opacity 0.65 -> 1.0)
+                if (ExpDotGlow != null)
+                {
+                    var dotGlowBlur = new DoubleAnimation(6.0, 14.0, TimeSpan.FromMilliseconds(900))
+                    {
+                        EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+                    };
+                    Storyboard.SetTarget(dotGlowBlur, ExpDotGlow);
+                    Storyboard.SetTargetProperty(dotGlowBlur, new PropertyPath(DropShadowEffect.BlurRadiusProperty));
+                    _privacyPulseStoryboard.Children.Add(dotGlowBlur);
+
+                    var dotGlowOpacity = new DoubleAnimation(0.65, 1.0, TimeSpan.FromMilliseconds(900))
+                    {
+                        EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+                    };
+                    Storyboard.SetTarget(dotGlowOpacity, ExpDotGlow);
+                    Storyboard.SetTargetProperty(dotGlowOpacity, new PropertyPath(DropShadowEffect.OpacityProperty));
+                    _privacyPulseStoryboard.Children.Add(dotGlowOpacity);
+                }
+
+                // Pulse 3: Aura tỏa sáng xung quanh background của ExpPrivacyBadge (Blur 10 -> 18, Opacity 0.35 -> 0.75)
+                if (ExpPrivacyGlow != null)
+                {
+                    var badgeGlowBlur = new DoubleAnimation(10.0, 18.0, TimeSpan.FromMilliseconds(900))
+                    {
+                        EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+                    };
+                    Storyboard.SetTarget(badgeGlowBlur, ExpPrivacyGlow);
+                    Storyboard.SetTargetProperty(badgeGlowBlur, new PropertyPath(DropShadowEffect.BlurRadiusProperty));
+                    _privacyPulseStoryboard.Children.Add(badgeGlowBlur);
+
+                    var badgeGlowOpacity = new DoubleAnimation(0.35, 0.75, TimeSpan.FromMilliseconds(900))
+                    {
+                        EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+                    };
+                    Storyboard.SetTarget(badgeGlowOpacity, ExpPrivacyGlow);
+                    Storyboard.SetTargetProperty(badgeGlowOpacity, new PropertyPath(DropShadowEffect.OpacityProperty));
+                    _privacyPulseStoryboard.Children.Add(badgeGlowOpacity);
+                }
+
+                // Pulse 4: Chấm xanh lá ở Compact Idle View (IdleCameraDotScale & IdleCameraDotGlow)
+                if (IdleCameraDotScale != null)
+                {
+                    var idleScaleX = new DoubleAnimation(0.85, 1.25, TimeSpan.FromMilliseconds(900))
+                    {
+                        EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+                    };
+                    Storyboard.SetTarget(idleScaleX, IdleCameraDotScale);
+                    Storyboard.SetTargetProperty(idleScaleX, new PropertyPath(ScaleTransform.ScaleXProperty));
+                    _privacyPulseStoryboard.Children.Add(idleScaleX);
+
+                    var idleScaleY = new DoubleAnimation(0.85, 1.25, TimeSpan.FromMilliseconds(900))
+                    {
+                        EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+                    };
+                    Storyboard.SetTarget(idleScaleY, IdleCameraDotScale);
+                    Storyboard.SetTargetProperty(idleScaleY, new PropertyPath(ScaleTransform.ScaleYProperty));
+                    _privacyPulseStoryboard.Children.Add(idleScaleY);
+                }
+
+                if (IdleCameraDotGlow != null)
+                {
+                    var idleGlowBlur = new DoubleAnimation(6.0, 13.0, TimeSpan.FromMilliseconds(900))
+                    {
+                        EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+                    };
+                    Storyboard.SetTarget(idleGlowBlur, IdleCameraDotGlow);
+                    Storyboard.SetTargetProperty(idleGlowBlur, new PropertyPath(DropShadowEffect.BlurRadiusProperty));
+                    _privacyPulseStoryboard.Children.Add(idleGlowBlur);
+                }
+            }
+
+            try
+            {
+                _privacyPulseStoryboard.Begin(this, true);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Privacy pulse start error: {ex.Message}");
+            }
+        }
+
+        private void StopPrivacyPulseAnimation()
+        {
+            try
+            {
+                _privacyPulseStoryboard?.Stop(this);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Privacy pulse stop error: {ex.Message}");
+            }
+        }
+
         private void UpdateControlCenterPrivacyUI(PrivacyStatusChangedEventArgs e)
         {
             if (BtnGlobalMicMute != null)
             {
                 if (e.IsMicrophoneMuted)
                 {
-                    TxtGlobalMicIcon.Text = "\uE740"; // Mic Off
-                    TxtGlobalMicIcon.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0x45, 0x3A));
-                    TxtGlobalMicText.Text = "Mic MUTE";
-                    TxtGlobalMicText.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0x45, 0x3A));
+                    TxtGlobalMicIcon.Text = "\uE740"; // Mic Off / Muted
+                    TxtGlobalMicIcon.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0x45, 0x3A)); // Red #FF453A
+                    BtnGlobalMicMute.ToolTip = "Microphone đang tắt (Click để Bật lại)";
                 }
                 else
                 {
                     TxtGlobalMicIcon.Text = "\uE720"; // Mic On
-                    TxtGlobalMicIcon.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x34, 0xC7, 0x59));
-                    TxtGlobalMicText.Text = "Mic ON";
-                    TxtGlobalMicText.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xE5, 0xE5, 0xEA));
+                    TxtGlobalMicIcon.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x34, 0xC7, 0x59)); // Green #34C759
+                    BtnGlobalMicMute.ToolTip = "Microphone đang bật (Click để Tắt mic toàn hệ thống)";
                 }
             }
 
+            bool showPrivacy = SettingsService.Instance.Current.EnablePrivacyIndicators;
+
             if (ExpPrivacyBadge != null)
             {
-                if (e.IsMicrophoneInUse || e.IsCameraInUse)
+                if ((e.IsMicrophoneInUse || e.IsCameraInUse) && showPrivacy)
                 {
                     ExpPrivacyBadge.Visibility = Visibility.Visible;
+                    StartPrivacyPulseAnimation();
+
                     if (e.IsMicrophoneInUse && e.IsCameraInUse)
                     {
-                        ExpPrivacyDot.Fill = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0x95, 0x00));
-                        TxtExpPrivacyText.Text = "Mic & Cam đang dùng";
-                        TxtExpPrivacyText.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0x95, 0x00));
-                    }
-                    else if (e.IsMicrophoneInUse)
-                    {
-                        ExpPrivacyDot.Fill = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0x95, 0x00));
-                        string firstApp = e.MicrophoneApps.Count > 0 ? e.MicrophoneApps[0] : "App";
-                        TxtExpPrivacyText.Text = $"{firstApp} dùng Mic";
-                        TxtExpPrivacyText.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0x95, 0x00));
-                    }
-                    else
-                    {
+                        // Cả Camera và Mic đều đang hoạt động
+                        ExpPrivacyBadge.Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x28, 0x34, 0xC7, 0x59));
+                        ExpPrivacyBadge.BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x34, 0xC7, 0x59));
+                        if (ExpPrivacyGlow != null) ExpPrivacyGlow.Color = System.Windows.Media.Color.FromRgb(0x34, 0xC7, 0x59);
+                        if (ExpDotGlow != null) ExpDotGlow.Color = System.Windows.Media.Color.FromRgb(0x34, 0xC7, 0x59);
                         ExpPrivacyDot.Fill = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x34, 0xC7, 0x59));
-                        string firstApp = e.CameraApps.Count > 0 ? e.CameraApps[0] : "App";
-                        TxtExpPrivacyText.Text = $"{firstApp} dùng Cam";
+                        TxtExpPrivacyIcon.Text = "\uE722"; // Camera icon
+                        TxtExpPrivacyIcon.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x34, 0xC7, 0x59));
+                        TxtExpPrivacyText.Text = "Cam & Mic";
+                        TxtExpPrivacyText.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0x95, 0x00));
+
+                        if (TxtExpPrivacyTooltipDetail != null)
+                        {
+                            TxtExpPrivacyTooltipDetail.Text = $"📷 Webcam: {e.CameraSummary}\n🎤 Mic: {e.MicrophoneSummary}\n(Click để tắt/bật Micro)";
+                        }
+
+                        // Cập nhật thông tin chi tiết ở chân trang (Row 3)
+                        if (ExpPrivacyFooter != null && ExpHintFooter != null)
+                        {
+                            ExpHintFooter.Visibility = Visibility.Collapsed;
+                            ExpPrivacyFooter.Visibility = Visibility.Visible;
+                            TxtExpPrivacyFooterIcon.Text = "\uE722";
+                            TxtExpPrivacyFooterIcon.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x34, 0xC7, 0x59));
+                            TxtExpPrivacyFooterText.Text = $"{e.CameraSummary}  •  🎤 {e.MicrophoneSummary}";
+                        }
+                    }
+                    else if (e.IsCameraInUse)
+                    {
+                        // Chỉ có Camera đang dùng: Hiệu ứng Glow Neon Xanh Lá đẳng cấp
+                        ExpPrivacyBadge.Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x28, 0x34, 0xC7, 0x59));
+                        ExpPrivacyBadge.BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x34, 0xC7, 0x59));
+                        if (ExpPrivacyGlow != null) ExpPrivacyGlow.Color = System.Windows.Media.Color.FromRgb(0x34, 0xC7, 0x59);
+                        if (ExpDotGlow != null) ExpDotGlow.Color = System.Windows.Media.Color.FromRgb(0x34, 0xC7, 0x59);
+                        ExpPrivacyDot.Fill = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x34, 0xC7, 0x59));
+                        TxtExpPrivacyIcon.Text = "\uE722";
+                        TxtExpPrivacyIcon.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x34, 0xC7, 0x59));
+                        TxtExpPrivacyText.Text = "Cam";
                         TxtExpPrivacyText.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x34, 0xC7, 0x59));
+
+                        if (TxtExpPrivacyTooltipDetail != null)
+                        {
+                            TxtExpPrivacyTooltipDetail.Text = $"📷 Webcam: {e.CameraSummary}";
+                        }
+
+                        // Cập nhật Footer hàng 3
+                        if (ExpPrivacyFooter != null && ExpHintFooter != null)
+                        {
+                            ExpHintFooter.Visibility = Visibility.Collapsed;
+                            ExpPrivacyFooter.Visibility = Visibility.Visible;
+                            TxtExpPrivacyFooterIcon.Text = "\uE722";
+                            TxtExpPrivacyFooterIcon.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x34, 0xC7, 0x59));
+                            TxtExpPrivacyFooterText.Text = $"{e.CameraSummary} đang sử dụng Webcam";
+                        }
+                    }
+                    else // IsMicrophoneInUse
+                    {
+                        // Chỉ có Microphone đang dùng: Hiệu ứng Glow Cam Hổ Phách
+                        ExpPrivacyBadge.Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x28, 0xFF, 0x95, 0x00));
+                        ExpPrivacyBadge.BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0x95, 0x00));
+                        if (ExpPrivacyGlow != null) ExpPrivacyGlow.Color = System.Windows.Media.Color.FromRgb(0xFF, 0x95, 0x00);
+                        if (ExpDotGlow != null) ExpDotGlow.Color = System.Windows.Media.Color.FromRgb(0xFF, 0x95, 0x00);
+                        ExpPrivacyDot.Fill = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0x95, 0x00));
+                        TxtExpPrivacyIcon.Text = "\uE720";
+                        TxtExpPrivacyIcon.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0x95, 0x00));
+                        TxtExpPrivacyText.Text = "Mic";
+                        TxtExpPrivacyText.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0x95, 0x00));
+
+                        if (TxtExpPrivacyTooltipDetail != null)
+                        {
+                            TxtExpPrivacyTooltipDetail.Text = $"🎤 Mic: {e.MicrophoneSummary}\n(Click để tắt/bật Micro)";
+                        }
+
+                        // Cập nhật Footer hàng 3
+                        if (ExpPrivacyFooter != null && ExpHintFooter != null)
+                        {
+                            ExpHintFooter.Visibility = Visibility.Collapsed;
+                            ExpPrivacyFooter.Visibility = Visibility.Visible;
+                            TxtExpPrivacyFooterIcon.Text = "\uE720";
+                            TxtExpPrivacyFooterIcon.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0x95, 0x00));
+                            TxtExpPrivacyFooterText.Text = $"{e.MicrophoneSummary} đang sử dụng Microphone";
+                        }
                     }
                 }
                 else
                 {
                     ExpPrivacyBadge.Visibility = Visibility.Collapsed;
+                    StopPrivacyPulseAnimation();
+                    if (ExpPrivacyFooter != null && ExpHintFooter != null)
+                    {
+                        ExpPrivacyFooter.Visibility = Visibility.Collapsed;
+                        ExpHintFooter.Visibility = Visibility.Visible;
+                    }
                 }
+            }
+        }
+
+        private void ExpPrivacyBadge_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+            if (PrivacyService.Instance.IsMicrophoneInUse)
+            {
+                bool newMuted = PrivacyService.Instance.ToggleMicrophoneMute();
+                ShowMicToast(newMuted);
             }
         }
 

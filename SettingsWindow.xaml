@@ -400,6 +400,21 @@
                                 </Grid>
                             </Border>
 
+                            <!-- Card 5: Khóa vị trí (Lock Position) -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Khóa vị trí (Lock Position)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                        <TextBlock Text="Cố định Dynamic Island tại vị trí hiện tại, ngăn việc vô tình kéo di chuyển đảo bằng chuột." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkLockPosition" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="False" Click="ChkLockPosition_Click"/>
+                                </Grid>
+                            </Border>
+
                             <!-- Card 5: Tự động ẩn (Auto-Hide) -->
                             <Border Style="{StaticResource SettingCardBorder}">
                                 <Grid>

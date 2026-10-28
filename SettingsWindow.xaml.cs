@@ -34,6 +34,21 @@ namespace DynamicIsland
             }
         }
 
+        public static bool IsCursorOverSettings(Win32Helper.POINT pt)
+        {
+            if (_instance == null || !_instance.IsLoaded || !_instance.IsVisible) return false;
+            try
+            {
+                System.Windows.Point localPt = _instance.PointFromScreen(new System.Windows.Point(pt.X, pt.Y));
+                return localPt.X >= 0 && localPt.X <= _instance.ActualWidth &&
+                       localPt.Y >= 0 && localPt.Y <= _instance.ActualHeight;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public SettingsWindow()
         {
             InitializeComponent();
@@ -81,6 +96,7 @@ namespace DynamicIsland
             LblHorizontalOffset.Text = s.HorizontalOffset == 0 ? "0 px (Chính giữa)" : $"{(int)s.HorizontalOffset} px";
 
             ChkAlwaysOnTop.IsChecked = s.AlwaysOnTop;
+            ChkLockPosition.IsChecked = s.LockPosition;
             ChkAutoHide.IsChecked = s.AutoHide;
             SliderAutoHideDelay.Value = s.AutoHideDelay;
             LblAutoHideDelay.Text = $"{s.AutoHideDelay:0.0} giây";
@@ -248,6 +264,12 @@ namespace DynamicIsland
         {
             if (_isInitializing) return;
             SettingsService.Instance.Update(s => s.AlwaysOnTop = ChkAlwaysOnTop.IsChecked == true);
+        }
+
+        private void ChkLockPosition_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isInitializing) return;
+            SettingsService.Instance.Update(s => s.LockPosition = ChkLockPosition.IsChecked == true);
         }
 
         private void ChkAutoHide_Click(object sender, RoutedEventArgs e)

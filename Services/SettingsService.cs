@@ -15,6 +15,7 @@ namespace DynamicIsland.Services
         public bool StartWithWindows { get; set; } = false;
         public bool AutoHide { get; set; } = false;
         public double AutoHideDelay { get; set; } = 1.5;
+        public bool LockPosition { get; set; } = false;
 
         // Kích thước & Hình dáng
         public double IdleWidth { get; set; } = 190;

@@ -1,10 +1,20 @@
 ## Visual Studio / .NET Build Artifacts
 bin/
 obj/
+publish/
+publish-light/
 *.user
 *.suo
 *.userosscache
 *.sln.docstates
+
+## Release / Archive Packages
+*.zip
+*.7z
+*.rar
+
+## Scratch / Temp directories
+scratch/
 
 ## Logs and Temp files
 *.log

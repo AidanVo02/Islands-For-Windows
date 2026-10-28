@@ -37,9 +37,15 @@ Islands For Windows brings the fluid capsule interface concept to desktop enviro
   - Detects Windows native keyboard layout changes via `Win + Space` or `Alt + Shift`.
   - Displays transient status pill (`[VIE] Tiếng Việt` vs `[ENG] English`) with automatic 1.6-second dismissal.
 
-### Media Player Integration
+### Media Player & Live Lyrics Integration
 - **System Media Transport Controls (SMTC)**: Automatically captures active sessions from Spotify, YouTube (via Chrome, Edge, Brave), Apple Music, and other media players.
-- **Expanded Player**: Displays high-resolution album artwork, track title, artist name, source badge, interactive timeline progress, and playback controls (`Previous`, `Play/Pause`, `Next`).
+- **Synchronized Live Lyrics (LRCLIB Integration)**:
+  - Fetches precise, synchronized `.lrc` lyrics from the open-source community database [LRCLIB](https://lrclib.net/).
+  - **Compact View**: Marquee display showing the real-time active lyric line (`♪ [Lyric]`) directly on the pill.
+  - **Expanded View**: Premium Apple Music-style 3-line layout (Previous line, glowing high-contrast active line, Next line).
+  - Handles instrumental interludes gracefully (`•••`).
+  - Automatic fallback between exact track matching, base title resolution, and full-text search with rate-limit retry backoff.
+- **Expanded Player**: Displays high-resolution album artwork (52x52), track title, artist name, source badge, interactive timeline progress, and playback controls (`Previous`, `Play/Pause`, `Next`).
 - **Live Waveform Equalizer**: Smoothly animated 3-bar visualizer with Spotify signature green accent.
 
 ### Cross-Device File Transfer
@@ -76,9 +82,10 @@ Islands For Windows brings the fluid capsule interface concept to desktop enviro
 | **Adjust Brightness** | Hold `Alt` + Mouse wheel | Increases / decreases monitor brightness (±5%) |
 | **Toggle Mute** | Click Speaker icon | Toggles master audio mute state |
 | **Toggle Mic Mute** | Click Mic privacy dot | Toggles global system microphone mute |
-| **Expand Control Center** | Left-click on idle island | Opens Volume, Brightness, and System hub |
-| **Expand Media Player** | Click 'Nhạc' button | Opens detailed album art and playback controls |
-| **Collapse Island** | Click Close button or outside | Returns to compact pill |
+| **Smart Expand** | Left-click on idle island | Opens Media Player if audio/video is playing; opens Control Center if no media |
+| **Switch View (Mouse)** | Hold `Shift` + Mouse wheel | Toggles between Control Center and Media Player in expanded view |
+| **Switch View (Touchpad)** | Swipe left / right or 2-finger scroll | Toggles between Control Center and Media Player in expanded view |
+| **Collapse Island** | Click Close button or click outside | Returns to compact pill |
 | **Transfer File** | Drag & drop files onto Island | Initiates wireless transfer to mobile device |
 | **Wake Auto-Hide** | Hover cursor at top edge | Reveals hidden island smoothly |
 | **Switch Monitor** | Press `F9` | Moves the island to the next connected display |
@@ -100,6 +107,7 @@ Dynamics_island/
     ├── BrightnessService.cs           # WMI & DXVA2 monitor brightness controller
     ├── LocalSendService.cs            # LocalSend HTTP API & UDP multicast client
     ├── LockKeyService.cs              # Low-level keyboard hook (Caps/Num/IME)
+    ├── LyricsService.cs               # Synchronized LRC lyrics via LRCLIB API with smart caching
     ├── MediaService.cs                # GlobalSystemMediaTransportControlsSessionManager
     ├── PrivacyService.cs              # CapabilityAccessManager registry sensor monitor
     ├── SettingsService.cs             # JSON settings persistence & live sync
