@@ -185,5 +185,21 @@ namespace DynamicIsland.Services
                 await _currentSession.TrySkipPreviousAsync();
             }
         }
+
+        public async Task<bool> ChangePlaybackPositionAsync(TimeSpan position)
+        {
+            if (_currentSession != null)
+            {
+                try
+                {
+                    return await _currentSession.TryChangePlaybackPositionAsync(position.Ticks);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"ChangePlaybackPositionAsync error: {ex.Message}");
+                }
+            }
+            return false;
+        }
     }
 }

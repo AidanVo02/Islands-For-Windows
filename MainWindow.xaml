@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Dynamic Island"
-        Width="850" Height="340"
+        Width="850" Height="380"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="{x:Null}"
@@ -159,6 +159,11 @@
             <MenuItem Header="Cài đặt (Settings)" Click="MenuSettings_Click" FontWeight="SemiBold" InputGestureText="Ctrl+,">
                 <MenuItem.Icon>
                     <TextBlock Style="{StaticResource FluentIconStyle}" Text="&#xE713;" FontSize="13" Foreground="#AEAEB2"/>
+                </MenuItem.Icon>
+            </MenuItem>
+            <MenuItem Header="Tìm kiếm nhanh (Quick Search)" Click="MenuSearch_Click" InputGestureText="Alt+Space">
+                <MenuItem.Icon>
+                    <TextBlock Style="{StaticResource FluentIconStyle}" Text="&#xE721;" FontSize="13" Foreground="#AEAEB2"/>
                 </MenuItem.Icon>
             </MenuItem>
             <MenuItem x:Name="MenuLockPosition" Header="Khóa vị trí (Lock Position)" IsCheckable="True" Click="MenuLockPosition_Click">
@@ -548,7 +553,7 @@
                 </Grid>
 
                 <!-- 4. EXPANDED MEDIA VIEW (Detailed player with Live Lyrics) -->
-                <Grid x:Name="ExpandedMediaView" Visibility="Collapsed" Margin="22,14,22,12">
+                <Grid x:Name="ExpandedMediaView" Visibility="Collapsed" Margin="22,12,22,10">
                     <Grid.RowDefinitions>
                         <!-- Row 0: Hai cột chính (Lyrics bên trái, Thông tin & Controls bên phải) -->
                         <RowDefinition Height="*"/>
@@ -575,39 +580,47 @@
                             </Grid.RowDefinitions>
 
                             <!-- Lyrics Section Header -->
-                            <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,6">
                                 <TextBlock Text="&#xEC4F;" Style="{StaticResource FluentIconStyle}" FontSize="13" Foreground="#1DB954" Margin="0,0,6,0" VerticalAlignment="Center"/>
                                 <TextBlock Text="LỜI BÀI HÁT TRỰC TIẾP" FontSize="10" FontWeight="Bold" Foreground="#1DB954" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="TxtLyricsStatus" Text="" FontSize="10" Foreground="#8E8E98" Margin="8,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
 
                             <!-- Live Lyrics Content Container (Căn chính giữa theo chiều dọc) -->
-                            <Grid Grid.Row="1" VerticalAlignment="Center">
-                                <!-- 1. Panel khi CÓ lời bài hát đồng bộ -->
-                                <StackPanel x:Name="PanelLyricsSynced" VerticalAlignment="Center">
-                                    <!-- Dòng trước (Previous line - mờ nhẹ) -->
-                                    <TextBlock x:Name="TxtLyricPrev" Text="" Foreground="#727280" FontSize="13" FontWeight="Normal" 
-                                               TextTrimming="CharacterEllipsis" Margin="0,0,0,6" Opacity="0.7"/>
+                            <Grid Grid.Row="1" x:Name="LyricsContainer" ClipToBounds="True" Height="160" VerticalAlignment="Center" SizeChanged="LyricsContainer_SizeChanged" PreviewMouseWheel="LyricsContainer_PreviewMouseWheel">
+                                <!-- 1. Canvas giải phóng giới hạn chiều cao layout để toàn bộ lời bài hát được render đầy đủ -->
+                                <Canvas x:Name="LyricsCanvas" ClipToBounds="True">
+                                    <StackPanel x:Name="LyricsScrollPanel" Width="{Binding ActualWidth, ElementName=LyricsContainer}">
+                                        <StackPanel.RenderTransform>
+                                            <TranslateTransform x:Name="LyricsTranslate" Y="0"/>
+                                        </StackPanel.RenderTransform>
+                                    </StackPanel>
+                                </Canvas>
 
-                                    <!-- Dòng hiện tại (Current active line - to rõ rực rỡ, sáng trắng) -->
-                                    <TextBlock x:Name="TxtLyricCurrent" Text="Đang tải lời bài hát..." Foreground="#FFFFFF" FontSize="18" FontWeight="Bold" 
-                                               TextWrapping="Wrap" MaxHeight="52" TextTrimming="CharacterEllipsis" Margin="0,0,0,6"
-                                               FontFamily="Segoe UI Variable Display, Segoe UI">
-                                        <TextBlock.Effect>
-                                            <DropShadowEffect Color="#FFFFFF" BlurRadius="8" ShadowDepth="0" Opacity="0.3"/>
-                                        </TextBlock.Effect>
-                                    </TextBlock>
-
-                                    <!-- Dòng kế tiếp (Next line - mờ nhẹ) -->
-                                    <TextBlock x:Name="TxtLyricNext" Text="" Foreground="#727280" FontSize="13" FontWeight="Normal" 
-                                               TextTrimming="CharacterEllipsis" Opacity="0.7"/>
-                                </StackPanel>
-
-                                <!-- 2. Panel khi KHÔNG CÓ lời bài hát -->
+                                <!-- 2. Panel khi KHÔNG CÓ lời bài hát / Đang tải -->
                                 <StackPanel x:Name="PanelLyricsEmpty" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
-                                    <TextBlock Text="&#xEC4F;" Style="{StaticResource FluentIconStyle}" FontSize="24" Foreground="#3A3A42" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                                    <TextBlock x:Name="TxtLyricsEmptyIcon" Text="&#xEC4F;" Style="{StaticResource FluentIconStyle}" FontSize="24" Foreground="#3A3A42" HorizontalAlignment="Center" Margin="0,0,0,6"/>
                                     <TextBlock x:Name="TxtLyricsEmptyMessage" Text="Không có lời bài hát đồng bộ" FontSize="12" Foreground="#7D7D88" HorizontalAlignment="Center"/>
                                 </StackPanel>
+
+                                <!-- 3. Lớp phủ mờ đỉnh và đáy chuẩn Apple Music / Spotify (100% tương thích Transparent Window) -->
+                                <Border x:Name="LyricsTopFadeBorder" Height="24" VerticalAlignment="Top" IsHitTestVisible="False">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Offset="0.0" Color="#FF080809"/>
+                                            <GradientStop Offset="1.0" Color="#00080809"/>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+
+                                <Border x:Name="LyricsBottomFadeBorder" Height="28" VerticalAlignment="Bottom" IsHitTestVisible="False">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Offset="0.0" Color="#00080809"/>
+                                            <GradientStop Offset="1.0" Color="#FF080809"/>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
                             </Grid>
                         </Grid>
 
@@ -797,6 +810,189 @@
                     <Border x:Name="LockKeyBadge" Grid.Column="2" Height="22" Background="#152A1C" BorderBrush="#245832" BorderThickness="1" CornerRadius="11" Padding="8,0,8,0" VerticalAlignment="Center">
                         <TextBlock x:Name="TxtLockKeyStatus" Text="BẬT" Foreground="#34C759" FontWeight="Bold" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
+                </Grid>
+                <!-- 9. QUICK SEARCH & APP LAUNCHER VIEW -->
+                <Grid x:Name="SearchView" Visibility="Collapsed" VerticalAlignment="Top">
+                    <Grid.RowDefinitions>
+                        <!-- Row 0: Search Input Bar (Cố định 48px) -->
+                        <RowDefinition Height="48"/>
+                        <!-- Row 1: Subtle Horizontal Divider -->
+                        <RowDefinition Height="Auto"/>
+                        <!-- Row 2: Search Results List (Co giãn tự động tối đa 5 dòng) -->
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Top Input Bar (48px) -->
+                    <Grid Grid.Row="0" Margin="16,0,16,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Search Icon (Trái) -->
+                        <TextBlock Grid.Column="0" Text="&#xE721;" Style="{StaticResource FluentIconStyle}" FontSize="15" Foreground="#8E8E93" VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                        <!-- Search TextBox & Placeholder (Giữa) -->
+                        <Grid Grid.Column="1" VerticalAlignment="Center">
+                            <!-- Placeholder mờ khi chưa gõ chữ -->
+                            <TextBlock x:Name="TxtSearchPlaceholder" 
+                                       Text="Tìm ứng dụng, tính toán hoặc gõ lệnh..." 
+                                       Foreground="#636366" 
+                                       FontSize="14" 
+                                       FontFamily="Segoe UI Variable Display, Segoe UI" 
+                                       VerticalAlignment="Center" 
+                                       IsHitTestVisible="False"
+                                       Visibility="Visible"/>
+
+                            <TextBox x:Name="SearchTextBox" 
+                                     Background="Transparent" 
+                                     BorderThickness="0" 
+                                     Foreground="#FFFFFF" 
+                                     CaretBrush="#FFFFFF" 
+                                     FontSize="14" 
+                                     FontFamily="Segoe UI Variable Display, Segoe UI" 
+                                     VerticalAlignment="Center"
+                                     VerticalContentAlignment="Center"
+                                     Padding="0"
+                                     FocusVisualStyle="{x:Null}"
+                                     TextChanged="SearchTextBox_TextChanged"
+                                     PreviewKeyDown="SearchTextBox_PreviewKeyDown"/>
+                        </Grid>
+
+                        <!-- Badge phím tắt ESC (Phải) -->
+                        <Border Grid.Column="2" 
+                                Background="#1C1C1E" 
+                                BorderBrush="#38383A" 
+                                BorderThickness="1" 
+                                CornerRadius="6" 
+                                Padding="6,2,6,2" 
+                                VerticalAlignment="Center" 
+                                Cursor="Hand"
+                                ToolTip="Bấm ESC để đóng tìm kiếm"
+                                MouseLeftButtonUp="BtnCloseSearch_MouseLeftButtonUp">
+                            <TextBlock Text="ESC" FontSize="10" FontWeight="SemiBold" Foreground="#8E8E93" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                        </Border>
+                    </Grid>
+
+                    <!-- Row 1: Subtle Horizontal Divider Line -->
+                    <Border x:Name="SearchDivider" 
+                            Grid.Row="1" 
+                            Height="1" 
+                            Background="#14FFFFFF" 
+                            Margin="16,0,16,6" 
+                            Visibility="Collapsed"/>
+
+                    <!-- Row 2: Results List -->
+                    <ListBox x:Name="SearchListBox" 
+                             Grid.Row="2" 
+                             Background="Transparent" 
+                             BorderThickness="0" 
+                             Padding="0" 
+                             Margin="12,2,12,14"
+                             Visibility="Collapsed"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                             PreviewMouseLeftButtonUp="SearchListBox_PreviewMouseLeftButtonUp">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Focusable" Value="False"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Padding" Value="10,6,10,6"/>
+                                <Setter Property="Margin" Value="0,1,0,1"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border x:Name="ItemBorder" Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="ItemBorder" Property="Background" Value="#22FFFFFF"/>
+                                                </Trigger>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="ItemBorder" Property="Background" Value="#14FFFFFF"/>
+                                                </Trigger>
+                                                <MultiTrigger>
+                                                    <MultiTrigger.Conditions>
+                                                        <Condition Property="IsSelected" Value="True"/>
+                                                        <Condition Property="IsMouseOver" Value="True"/>
+                                                    </MultiTrigger.Conditions>
+                                                    <Setter TargetName="ItemBorder" Property="Background" Value="#2AFFFFFF"/>
+                                                </MultiTrigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Height="34" VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="34"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Icon Column: Hoặc Image thật (App), hoặc Fluent Glyph (Calculator/Web/Sys) -->
+                                    <Grid Grid.Column="0" Width="28" Height="28" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                        <!-- App Icon -->
+                                        <Image Source="{Binding Icon}" Width="28" Height="28" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality">
+                                            <Image.Style>
+                                                <Style TargetType="Image">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Icon}" Value="{x:Null}">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Image.Style>
+                                        </Image>
+
+                                        <!-- Fluent Glyph Icon Container (khi không có Icon ảnh) -->
+                                        <Border CornerRadius="7" Background="#1C1C20" Width="28" Height="28">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Icon}" Value="{x:Null}">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <TextBlock Text="{Binding IconGlyph}" 
+                                                       Style="{StaticResource FluentIconStyle}" 
+                                                       FontSize="13" 
+                                                       Foreground="{Binding IconGlyphBrush}" 
+                                                       HorizontalAlignment="Center" 
+                                                       VerticalAlignment="Center"/>
+                                        </Border>
+                                    </Grid>
+
+                                    <!-- Info Column (Title + Subtitle) -->
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,0,8,0">
+                                        <TextBlock Text="{Binding Title}" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="12.5" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding Subtitle}" Foreground="#99FFFFFF" FontSize="10" TextTrimming="CharacterEllipsis" Margin="0,1,0,0"/>
+                                    </StackPanel>
+
+                                    <!-- Right Hint Badge -->
+                                    <Border Grid.Column="2" 
+                                            Background="#14FFFFFF" 
+                                            BorderBrush="#18FFFFFF" 
+                                            BorderThickness="1" 
+                                            CornerRadius="5" 
+                                            Padding="6,2.5,6,2.5" 
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding ActionHint}" Foreground="#AEAEB2" FontSize="9.5" FontWeight="Medium"/>
+                                    </Border>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
                 </Grid>
             </Grid>
         </Border>

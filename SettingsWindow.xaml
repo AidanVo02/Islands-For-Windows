@@ -726,6 +726,21 @@
                                     <CheckBox x:Name="ChkLockKeyNotifications" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Click="ChkLockKeyNotifications_Click"/>
                                 </Grid>
                             </Border>
+
+                            <!-- Card: Tìm kiếm nhanh & Khởi chạy ứng dụng (Alt + Space) -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Tìm kiếm nhanh &amp; Khởi chạy ứng dụng (Alt + Space)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                        <TextBlock Text="Kích hoạt thanh Quick Search &amp; App Launcher siêu nhẹ với phím tắt toàn cục Alt + Space." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkEnableSearchHotkey" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Click="ChkEnableSearchHotkey_Click"/>
+                                </Grid>
+                            </Border>
                         </StackPanel>
 
                         <!-- ================= TAB 4: HỆ THỐNG & PHÍM TẮT ================= -->

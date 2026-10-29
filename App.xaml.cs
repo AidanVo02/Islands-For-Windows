@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
 
@@ -11,9 +12,18 @@ namespace DynamicIsland;
 public partial class App : System.Windows.Application
 {
     private static readonly string LogFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log");
+    private static Mutex? _singleInstanceMutex;
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        const string mutexName = "DynamicIsland_SingleInstance_Mutex_App";
+        _singleInstanceMutex = new Mutex(true, mutexName, out bool createdNew);
+        if (!createdNew)
+        {
+            Shutdown();
+            return;
+        }
+
         base.OnStartup(e);
 
         AppDomain.CurrentDomain.UnhandledException += (s, args) =>
@@ -42,5 +52,16 @@ public partial class App : System.Windows.Application
                 SettingsWindow.ShowOrActivate();
             }), DispatcherPriority.Loaded);
         }
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        if (_singleInstanceMutex != null)
+        {
+            try { _singleInstanceMutex.ReleaseMutex(); } catch { }
+            _singleInstanceMutex.Dispose();
+            _singleInstanceMutex = null;
+        }
+        base.OnExit(e);
     }
 }

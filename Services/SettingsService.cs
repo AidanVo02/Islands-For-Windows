@@ -43,6 +43,9 @@ namespace DynamicIsland.Services
         public bool EnablePrivacyIndicators { get; set; } = true;
         public bool EnableLockKeyNotifications { get; set; } = true;
 
+        // Tìm kiếm nhanh & Khởi chạy ứng dụng (Quick Search & App Launcher)
+        public bool EnableSearchHotkey { get; set; } = true;
+
         // Truyền file sang điện thoại
         // "WindowsShare": Phương án 1 (Phone Link, Nearby Share - Hoạt động mọi nơi, kể cả quán cafe có AP Isolation)
         // "LocalSend": Phương án 2 (Mạng nội bộ gia đình)

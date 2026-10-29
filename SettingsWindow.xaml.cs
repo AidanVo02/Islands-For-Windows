@@ -124,6 +124,7 @@ namespace DynamicIsland
             ChkMouseWheelVolume.IsChecked = s.MouseWheelVolumeEnabled;
             ChkPrivacyIndicators.IsChecked = s.EnablePrivacyIndicators;
             ChkLockKeyNotifications.IsChecked = s.EnableLockKeyNotifications;
+            ChkEnableSearchHotkey.IsChecked = s.EnableSearchHotkey;
 
             // LocalSend & File Transfer
             if (s.FileTransferMethod == "LocalSend")
@@ -426,6 +427,12 @@ namespace DynamicIsland
         {
             if (_isInitializing) return;
             SettingsService.Instance.Update(s => s.EnableLockKeyNotifications = ChkLockKeyNotifications.IsChecked == true);
+        }
+
+        private void ChkEnableSearchHotkey_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isInitializing) return;
+            SettingsService.Instance.Update(s => s.EnableSearchHotkey = ChkEnableSearchHotkey.IsChecked == true);
         }
         #endregion
 

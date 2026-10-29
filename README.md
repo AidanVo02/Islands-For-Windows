@@ -37,12 +37,27 @@ Islands For Windows brings the fluid capsule interface concept to desktop enviro
   - Detects Windows native keyboard layout changes via `Win + Space` or `Alt + Shift`.
   - Displays transient status pill (`[VIE] Tiếng Việt` vs `[ENG] English`) with automatic 1.6-second dismissal.
 
-### Media Player & Live Lyrics Integration
+### Quick Search & App Launcher (Spotlight / PowerToys Run Style)
+- **Global Hotkey**: Press `Alt + Space` from anywhere to summon the lightweight search bar directly inside the capsule.
+- **Zero-Bloat Indexing**: Scans Windows Start Menu shortcuts without background memory polling; automatically monitors software installs/uninstalls via `FileSystemWatcher`.
+- **Multi-Purpose Parser**:
+  - **Applications**: Substring, prefix, and acronym fuzzy matching (e.g., `vsc` -> `Visual Studio Code`).
+  - **Inline Calculator**: Computes arithmetic formulas instantly (`1250 * 24`, `(500+200)/4`). Pressing `Enter` copies the result to clipboard.
+  - **Web Bangs**: Prefix with `gg <query>` for Google Search or `yt <query>` for YouTube.
+  - **System Commands**: Quick commands for `lock` (Lock Screen), `sleep` (Sleep), `trash`/`emptybin` (Empty Recycle Bin), and `settings`.
+- **Keyboard Navigation**:
+  - `Up` / `Down`: Navigate results smoothly without losing typing focus.
+  - `Enter`: Execute the selected item.
+  - `Ctrl + Shift + Enter`: Launch the application with Administrator privileges (`runas`).
+  - `Esc`: Close search mode and morph the island back to its previous state.
+
+### Media Player & Kinetic Live Lyrics
 - **System Media Transport Controls (SMTC)**: Automatically captures active sessions from Spotify, YouTube (via Chrome, Edge, Brave), Apple Music, and other media players.
-- **Synchronized Live Lyrics (LRCLIB Integration)**:
+- **Synchronized Kinetic Live Lyrics (LRCLIB Integration)**:
   - Fetches precise, synchronized `.lrc` lyrics from the open-source community database [LRCLIB](https://lrclib.net/).
   - **Compact View**: Marquee display showing the real-time active lyric line (`♪ [Lyric]`) directly on the pill.
-  - **Expanded View**: Premium Apple Music-style 3-line layout (Previous line, glowing high-contrast active line, Next line).
+  - **Expanded View**: Apple Music / Spotify smooth continuous kinetic scrolling with soft top & bottom gradient fades.
+  - **Interactive Seeking**: Click any lyric line to jump directly to that timestamp, or use the mouse wheel over the lyrics area to scroll forward/backward through the song.
   - Handles instrumental interludes gracefully (`•••`).
   - Automatic fallback between exact track matching, base title resolution, and full-text search with rate-limit retry backoff.
 - **Expanded Player**: Displays high-resolution album artwork (52x52), track title, artist name, source badge, interactive timeline progress, and playback controls (`Previous`, `Play/Pause`, `Next`).
@@ -89,6 +104,7 @@ Islands For Windows brings the fluid capsule interface concept to desktop enviro
 | **Transfer File** | Drag & drop files onto Island | Initiates wireless transfer to mobile device |
 | **Wake Auto-Hide** | Hover cursor at top edge | Reveals hidden island smoothly |
 | **Switch Monitor** | Press `F9` | Moves the island to the next connected display |
+| **Quick Search** | Press `Alt + Space` | Opens the quick search & app launcher |
 | **Open Settings** | Press `Ctrl + ,` | Opens the configuration dialog |
 | **Context Menu** | Right-click on Island | Displays quick actions, display picker, and exit |
 
