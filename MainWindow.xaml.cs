@@ -12,6 +12,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Interop;
 using Screen = System.Windows.Forms.Screen;
 using Point = System.Windows.Point;
+using Color = System.Windows.Media.Color;
 using DynamicIsland.Services;
 
 namespace DynamicIsland
@@ -50,9 +51,15 @@ namespace DynamicIsland
 
         private readonly DispatcherTimer _clockTimer = new();
 
-        private readonly DispatcherTimer _equalizerTimer = new();
+        private ExtractedColorPalette? _currentPalette;
 
-        private readonly Random _random = new();
+        private LinearGradientBrush? _waveGradientBrush;
+
+        private GradientStop? _waveStop0;
+
+        private GradientStop? _waveStop1;
+
+
 
         private IslandMode _currentMode = IslandMode.Idle;
 
@@ -212,9 +219,9 @@ namespace DynamicIsland
 
                 // Khởi động hoạt ảnh sóng nhạc (Equalizer)
 
-                _equalizerTimer.Interval = TimeSpan.FromMilliseconds(100);
+                InitializeVisualizerAndGlow();
 
-                _equalizerTimer.Tick += EqualizerTimer_Tick;
+
 
                 // Cấu hình timer Tự động ẩn (Auto-Hide)
 
@@ -379,7 +386,7 @@ namespace DynamicIsland
         private void SettingsService_SettingsChanged(IslandSettings settings)
 
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.BeginInvoke(() =>
 
             {
                 ApplySettings(settings);
@@ -417,17 +424,34 @@ namespace DynamicIsland
                 IslandContainer.BorderBrush = borderBrush;
 
                 if (IslandShadow != null)
-
                 {
-                    IslandShadow.Background = bgBrush;
+                    IslandShadow.Background = new SolidColorBrush(Colors.Black);
 
                     IslandShadow.Visibility = s.EnableShadow ? Visibility.Visible : Visibility.Collapsed;
 
                     if (IslandDropShadow != null)
-
                     {
                         IslandDropShadow.Opacity = s.ShadowOpacity;
                     }
+                }
+
+                AudioVisualizerService.Instance.IsEnabled = s.EqualizerEnabled;
+                if (!s.EqualizerEnabled)
+                {
+                    ResetEqualizerBars();
+                }
+                else if (_isPlaying && _isMediaActive)
+                {
+                    AudioVisualizerService.Instance.Start();
+                }
+
+                if (!s.AdaptiveColorGlowEnabled)
+                {
+                    RestoreDefaultShadow(animate: false);
+                }
+                else if (_isMediaActive && _isPlaying && _currentPalette != null)
+                {
+                    ApplyAdaptiveColors(_currentPalette, animate: false);
                 }
 
                 var transparentBg = System.Windows.Media.Color.FromArgb(0, bg.R, bg.G, bg.B);
@@ -639,7 +663,7 @@ namespace DynamicIsland
         private void BatteryService_BatteryChanged(BatteryInfo info)
 
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.BeginInvoke(() =>
 
             {
                 try
@@ -829,7 +853,7 @@ namespace DynamicIsland
         private void MediaService_MediaTrackChanged(MediaTrackInfo track)
 
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.BeginInvoke(() =>
 
             {
                 try
@@ -906,6 +930,20 @@ namespace DynamicIsland
                             _ = LyricsService.Instance.LoadLyricsAsync(_currentTrackTitle, _currentArtist, _currentDuration.TotalSeconds);
                         }
 
+                        if (s.AdaptiveColorGlowEnabled)
+                        {
+                            if (track.Thumbnail != null)
+                            {
+                                var palette = ColorExtractorService.Instance.ExtractColors(track.Thumbnail);
+                                ApplyAdaptiveColors(palette, animate: true);
+                            }
+                            else
+                            {
+                                var fallbackPalette = ColorExtractorService.Instance.DefaultPalette;
+                                ApplyAdaptiveColors(fallbackPalette, animate: true);
+                            }
+                        }
+
                         if (track.IsPlaying)
 
                         {
@@ -914,7 +952,8 @@ namespace DynamicIsland
                             if (s.EqualizerEnabled)
 
                             {
-                                _equalizerTimer.Start();
+                                AudioVisualizerService.Instance.Start();
+                                AudioVisualizerService.Instance.RestartCapture();
                             }
 
                             if (_currentMode == IslandMode.Idle && s.AutoSwitchMedia)
@@ -929,7 +968,8 @@ namespace DynamicIsland
                         {
                             _playbackProgressTimer.Stop();
 
-                            _equalizerTimer.Stop();
+                            AudioVisualizerService.Instance.Stop();
+                            ResetEqualizerBars();
                         }
                     }
 
@@ -938,7 +978,10 @@ namespace DynamicIsland
                     {
                         _playbackProgressTimer.Stop();
 
-                        _equalizerTimer.Stop();
+                        AudioVisualizerService.Instance.Stop();
+                        ResetEqualizerBars();
+                        _currentPalette = null;
+                        RestoreDefaultShadow(animate: true);
 
                         ResetLyricsUI("Không có trình phát nào đang mở");
 
@@ -963,7 +1006,7 @@ namespace DynamicIsland
         private void MediaService_PlaybackStateChanged(bool isPlaying)
 
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.BeginInvoke(() =>
 
             {
                 try
@@ -983,7 +1026,14 @@ namespace DynamicIsland
                         if (s.EqualizerEnabled)
 
                         {
-                            _equalizerTimer.Start();
+                            AudioVisualizerService.Instance.Start();
+                            AudioVisualizerService.Instance.RestartCapture();
+                        }
+
+                        if (s.AdaptiveColorGlowEnabled)
+                        {
+                            var palette = _currentPalette ?? ColorExtractorService.Instance.DefaultPalette;
+                            ApplyAdaptiveColors(palette, animate: true);
                         }
 
                         if (_currentMode == IslandMode.Idle && _isMediaActive && s.AutoSwitchMedia)
@@ -998,9 +1048,12 @@ namespace DynamicIsland
                     {
                         _playbackProgressTimer.Stop();
 
-                        _equalizerTimer.Stop();
-
+                        AudioVisualizerService.Instance.Stop();
                         ResetEqualizerBars();
+                        _currentPalette = null;
+                        RestoreDefaultShadow(animate: true);
+
+
                     }
                 }
 
@@ -1015,7 +1068,7 @@ namespace DynamicIsland
         private void MediaService_TimelineChanged(TimeSpan position, TimeSpan duration)
 
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.BeginInvoke(() =>
 
             {
                 try
@@ -1124,7 +1177,7 @@ namespace DynamicIsland
         private void LyricsService_LyricsLoaded(SongLyrics lyrics)
 
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.BeginInvoke(() =>
 
             {
                 RefreshLyricsUI();
@@ -1134,7 +1187,7 @@ namespace DynamicIsland
         private void LyricsService_ActiveLinesChanged(LyricLine? prev, LyricLine? current, LyricLine? next)
 
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.BeginInvoke(() =>
 
             {
                 if (current != null && !string.IsNullOrWhiteSpace(current.Text))
@@ -1699,32 +1752,270 @@ namespace DynamicIsland
             TxtPlayPauseIcon.Text = isPlaying ? "\uE769" : "\uE768"; // Pause vs Play
         }
 
-        private void EqualizerTimer_Tick(object? sender, EventArgs e)
+        #endregion
 
+        #region Audio Visualizer & Adaptive Chameleon Glow
+
+        private void InitializeVisualizerAndGlow()
         {
-            if (!SettingsService.Instance.Current.EqualizerEnabled)
+            _waveStop0 = new GradientStop(Color.FromRgb(0x1D, 0xB9, 0x54), 0.0);
+            _waveStop1 = new GradientStop(Color.FromRgb(0x60, 0xCD, 0xFF), 1.0);
+            _waveGradientBrush = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 1),
+                EndPoint = new Point(0, 0)
+            };
+            _waveGradientBrush.GradientStops.Add(_waveStop0);
+            _waveGradientBrush.GradientStops.Add(_waveStop1);
 
+            WaveBar1.Fill = _waveGradientBrush;
+            WaveBar2.Fill = _waveGradientBrush;
+            WaveBar3.Fill = _waveGradientBrush;
+            WaveBar4.Fill = _waveGradientBrush;
+
+            ResetEqualizerBars();
+
+            AudioVisualizerService.Instance.WaveformUpdated += AudioVisualizer_WaveformUpdated;
+            AudioVisualizerService.Instance.BeatDetected += AudioVisualizer_BeatDetected;
+            AudioVisualizerService.Instance.IsEnabled = SettingsService.Instance.Current.EqualizerEnabled;
+        }
+
+        private void AudioVisualizer_WaveformUpdated(float b1, float b2, float b3, float b4)
+        {
+            var s = SettingsService.Instance.Current;
+            if (!s.EqualizerEnabled || !_isMediaActive || !_isPlaying)
             {
                 ResetEqualizerBars();
-
                 return;
             }
 
-            WaveBar1.Height = _random.Next(4, 15);
+            const double minH = 3.0;
+            const double maxH = 14.0;
 
-            WaveBar2.Height = _random.Next(6, 17);
+            WaveBar1.Height = minH + (b1 * (maxH - minH));
+            WaveBar2.Height = minH + (b2 * (maxH - minH));
+            WaveBar3.Height = minH + (b3 * (maxH - minH));
+            WaveBar4.Height = minH + (b4 * (maxH - minH));
+        }
 
-            WaveBar3.Height = _random.Next(4, 13);
+        private void AudioVisualizer_BeatDetected()
+        {
+            if (!_isPlaying || _currentMode != IslandMode.MediaCompact) return;
+
+            var pulseAnimation = new DoubleAnimation
+            {
+                From = 1.06,
+                To = 1.0,
+                Duration = TimeSpan.FromMilliseconds(160),
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+            };
+
+            MiniThumbScale.BeginAnimation(ScaleTransform.ScaleXProperty, pulseAnimation);
+            MiniThumbScale.BeginAnimation(ScaleTransform.ScaleYProperty, pulseAnimation);
         }
 
         private void ResetEqualizerBars()
-
         {
-            WaveBar1.Height = 4;
+            WaveBar1.Height = 3.0;
+            WaveBar2.Height = 3.0;
+            WaveBar3.Height = 3.0;
+            WaveBar4.Height = 3.0;
+        }
 
-            WaveBar2.Height = 4;
+        private void ApplyAdaptiveColors(ExtractedColorPalette palette, bool animate = true)
+        {
+            _currentPalette = palette;
+            var s = SettingsService.Instance.Current;
+            if (!s.AdaptiveColorGlowEnabled)
+            {
+                RestoreDefaultShadow(animate);
+                return;
+            }
 
-            WaveBar3.Height = 4;
+            TimeSpan duration = animate ? TimeSpan.FromMilliseconds(600) : TimeSpan.Zero;
+            var ease = new QuadraticEase { EasingMode = EasingMode.EaseInOut };
+
+            if (IslandShadow != null)
+            {
+                IslandShadow.Background = new SolidColorBrush(Colors.Black);
+                IslandShadow.Visibility = s.EnableShadow ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            if (IslandDropShadow != null)
+            {
+                IslandDropShadow.BlurRadius = 24;
+                IslandDropShadow.ShadowDepth = 0;
+                IslandDropShadow.Direction = 270;
+                IslandDropShadow.Opacity = 0.55;
+
+                IslandDropShadow.BeginAnimation(DropShadowEffect.ColorProperty, null);
+                if (animate)
+                {
+                    var shadowAnim = new ColorAnimation
+                    {
+                        To = palette.DominantColor,
+                        Duration = duration,
+                        EasingFunction = ease
+                    };
+                    IslandDropShadow.BeginAnimation(DropShadowEffect.ColorProperty, shadowAnim);
+                }
+                else
+                {
+                    IslandDropShadow.Color = palette.DominantColor;
+                }
+            }
+
+            if (IslandContainer != null)
+            {
+                var neonBorder = Color.FromArgb(75, palette.DominantColor.R, palette.DominantColor.G, palette.DominantColor.B);
+                if (IslandContainer.BorderBrush is SolidColorBrush solidBorder && !solidBorder.IsFrozen)
+                {
+                    if (animate)
+                    {
+                        var borderAnim = new ColorAnimation
+                        {
+                            To = neonBorder,
+                            Duration = duration,
+                            EasingFunction = ease
+                        };
+                        solidBorder.BeginAnimation(SolidColorBrush.ColorProperty, borderAnim);
+                    }
+                    else
+                    {
+                        solidBorder.BeginAnimation(SolidColorBrush.ColorProperty, null);
+                        solidBorder.Color = neonBorder;
+                    }
+                }
+                else
+                {
+                    IslandContainer.BorderBrush = new SolidColorBrush(neonBorder);
+                }
+            }
+
+            if (_waveStop0 != null && _waveStop1 != null)
+            {
+                if (animate)
+                {
+                    var stop0Anim = new ColorAnimation
+                    {
+                        To = palette.DominantColor,
+                        Duration = duration,
+                        EasingFunction = ease
+                    };
+                    var stop1Anim = new ColorAnimation
+                    {
+                        To = palette.SecondaryColor,
+                        Duration = duration,
+                        EasingFunction = ease
+                    };
+                    _waveStop0.BeginAnimation(GradientStop.ColorProperty, stop0Anim);
+                    _waveStop1.BeginAnimation(GradientStop.ColorProperty, stop1Anim);
+                }
+                else
+                {
+                    _waveStop0.BeginAnimation(GradientStop.ColorProperty, null);
+                    _waveStop1.BeginAnimation(GradientStop.ColorProperty, null);
+                    _waveStop0.Color = palette.DominantColor;
+                    _waveStop1.Color = palette.SecondaryColor;
+                }
+            }
+
+            if (MediaProgressBar != null)
+            {
+                if (MediaProgressBar.Foreground is SolidColorBrush solidBrush && !solidBrush.IsFrozen)
+                {
+                    if (animate)
+                    {
+                        var progressAnim = new ColorAnimation
+                        {
+                            To = palette.DominantColor,
+                            Duration = duration,
+                            EasingFunction = ease
+                        };
+                        solidBrush.BeginAnimation(SolidColorBrush.ColorProperty, progressAnim);
+                    }
+                    else
+                    {
+                        solidBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
+                        solidBrush.Color = palette.DominantColor;
+                    }
+                }
+                else
+                {
+                    MediaProgressBar.Foreground = new SolidColorBrush(palette.DominantColor);
+                }
+            }
+        }
+
+        private void RestoreDefaultShadow(bool animate = true)
+        {
+            var s = SettingsService.Instance.Current;
+            var defaultColor = Colors.Black;
+
+            if (IslandDropShadow != null)
+            {
+                if (animate)
+                {
+                    var anim = new ColorAnimation
+                    {
+                        To = defaultColor,
+                        Duration = TimeSpan.FromMilliseconds(500),
+                        EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
+                    };
+                    anim.Completed += (s_ev, e_ev) =>
+                    {
+                        IslandDropShadow.BlurRadius = s.ShadowBlur;
+                        IslandDropShadow.ShadowDepth = 3;
+                        IslandDropShadow.Direction = 270;
+                        IslandDropShadow.Opacity = s.ShadowOpacity;
+                    };
+                    IslandDropShadow.BeginAnimation(DropShadowEffect.ColorProperty, anim);
+                }
+                else
+                {
+                    IslandDropShadow.BeginAnimation(DropShadowEffect.ColorProperty, null);
+                    IslandDropShadow.Color = defaultColor;
+                    IslandDropShadow.BlurRadius = s.ShadowBlur;
+                    IslandDropShadow.ShadowDepth = 3;
+                    IslandDropShadow.Direction = 270;
+                    IslandDropShadow.Opacity = s.ShadowOpacity;
+                }
+            }
+
+            if (IslandContainer != null)
+            {
+                var defaultBorderColor = (Color)System.Windows.Media.ColorConverter.ConvertFromString(s.BorderColor);
+                if (IslandContainer.BorderBrush is SolidColorBrush solidBorder && !solidBorder.IsFrozen)
+                {
+                    solidBorder.BeginAnimation(SolidColorBrush.ColorProperty, null);
+                    solidBorder.Color = defaultBorderColor;
+                }
+                else
+                {
+                    IslandContainer.BorderBrush = new SolidColorBrush(defaultBorderColor);
+                }
+            }
+
+            if (_waveStop0 != null && _waveStop1 != null)
+            {
+                _waveStop0.BeginAnimation(GradientStop.ColorProperty, null);
+                _waveStop1.BeginAnimation(GradientStop.ColorProperty, null);
+                _waveStop0.Color = Color.FromRgb(0x1D, 0xB9, 0x54);
+                _waveStop1.Color = Color.FromRgb(0x60, 0xCD, 0xFF);
+            }
+
+            if (MediaProgressBar != null)
+            {
+                if (MediaProgressBar.Foreground is SolidColorBrush progressBrush && !progressBrush.IsFrozen)
+                {
+                    progressBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
+                    progressBrush.Color = Color.FromRgb(0x1D, 0xB9, 0x54);
+                }
+                else
+                {
+                    MediaProgressBar.Foreground = new SolidColorBrush(Color.FromRgb(0x1D, 0xB9, 0x54));
+                }
+            }
         }
 
         #endregion
@@ -1956,9 +2247,9 @@ namespace DynamicIsland
 
             var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
 
-            var animWidth = new DoubleAnimation(IslandContainer.Width, width, duration) { EasingFunction = easing };
+            var animWidth = new DoubleAnimation { To = width, Duration = duration, EasingFunction = easing };
 
-            var animHeight = new DoubleAnimation(IslandContainer.Height, height, duration) { EasingFunction = easing };
+            var animHeight = new DoubleAnimation { To = height, Duration = duration, EasingFunction = easing };
 
             IslandContainer.BeginAnimation(WidthProperty, animWidth);
 
@@ -2111,6 +2402,11 @@ namespace DynamicIsland
                         fe.Name == "ExpandedCardVolume" ||
 
                         fe.Name == "ExpandedCardBrightness" ||
+                        fe.Name == "HudProgressBar" ||
+                        fe.Name == "SliderHudView" ||
+                        fe.Name == "BtnExpVolumeIcon" ||
+                        fe.Name == "BtnExpBrightnessIcon" ||
+                        fe.Name == "MediaProgressBar" ||
 
                         fe.Tag?.ToString() == "Interactive")
 
@@ -2196,7 +2492,7 @@ namespace DynamicIsland
         private void IslandContainer_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
 
         {
-            if (_isFileTransferInProgress || _currentMode == IslandMode.FileTransferring || _currentMode == IslandMode.SliderHud) return;
+            if (_isFileTransferInProgress || _currentMode == IslandMode.FileTransferring) return;
 
             _isInteractingWithControl = IsInteractiveControl(e.OriginalSource as DependencyObject);
 
@@ -2209,6 +2505,8 @@ namespace DynamicIsland
             {
                 return;
             }
+
+            if (_currentMode == IslandMode.SliderHud) return;
 
             _startPoint = e.GetPosition(this);
         }
@@ -2247,7 +2545,7 @@ namespace DynamicIsland
                     }
                 }
 
-                if (Math.Abs(diff.X) > 6 || Math.Abs(diff.Y) > 6)
+                if (Math.Abs(diff.X) > 12 || Math.Abs(diff.Y) > 12)
 
                 {
                     _dragAttempted = true;
@@ -3358,7 +3656,7 @@ namespace DynamicIsland
                     onProgress: (p) =>
 
                     {
-                        Dispatcher.Invoke(() =>
+                        Dispatcher.BeginInvoke(() =>
 
                         {
                             TransferProgressBar.Value = p;
@@ -3582,12 +3880,12 @@ namespace DynamicIsland
         private void VolumeService_VolumeChanged(object? sender, VolumeChangedEventArgs e)
 
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.BeginInvoke(() =>
 
             {
                 UpdateExpVolumeUI(e.VolumePercent, e.IsMuted);
 
-                if (SettingsService.Instance.Current.VolumeBrightnessHudEnabled && _currentMode != IslandMode.Expanded)
+                if (SettingsService.Instance.Current.VolumeBrightnessHudEnabled && _currentMode != IslandMode.Expanded && _currentMode != IslandMode.ExpandedMedia && !_isInteractingWithControl)
 
                 {
                     ShowVolumeHud(e.VolumePercent, e.IsMuted);
@@ -3598,12 +3896,12 @@ namespace DynamicIsland
         private void BrightnessService_BrightnessChanged(object? sender, BrightnessChangedEventArgs e)
 
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.BeginInvoke(() =>
 
             {
                 UpdateExpBrightnessUI(e.Brightness);
 
-                if (SettingsService.Instance.Current.VolumeBrightnessHudEnabled && _currentMode != IslandMode.Expanded)
+                if (SettingsService.Instance.Current.VolumeBrightnessHudEnabled && _currentMode != IslandMode.Expanded && _currentMode != IslandMode.ExpandedMedia && !_isInteractingWithControl)
 
                 {
                     ShowBrightnessHud(e.Brightness);
@@ -3891,72 +4189,112 @@ namespace DynamicIsland
             }
         }
 
-        private void Slider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-
-        {
-            if (sender is Slider slider)
-
-            {
-                slider.CaptureMouse();
-
-                UpdateSliderValueFromMouse(slider, e.GetPosition(slider));
-
-                e.Handled = true;
-            }
-        }
-
-        private void Slider_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
-
-        {
-            if (sender is Slider slider && slider.IsMouseCaptured && e.LeftButton == MouseButtonState.Pressed)
-
-            {
-                UpdateSliderValueFromMouse(slider, e.GetPosition(slider));
-
-                e.Handled = true;
-            }
-        }
-
-        private void Slider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-
-        {
-            if (sender is Slider slider && slider.IsMouseCaptured)
-
-            {
-                slider.ReleaseMouseCapture();
-
-                e.Handled = true;
-            }
-        }
-
         private void UpdateSliderValueFromMouse(Slider slider, Point pos)
-
         {
             double thumbRadius = 12;
-
             double trackWidth = slider.ActualWidth - 2 * thumbRadius;
-
             if (trackWidth <= 0) return;
-
             double x = pos.X - thumbRadius;
-
             double ratio = Math.Clamp(x / trackWidth, 0.0, 1.0);
-
             double newVal = slider.Minimum + ratio * (slider.Maximum - slider.Minimum);
-
-            slider.Value = newVal;
+            slider.Value = Math.Round(newVal);
         }
 
         private void SliderExpVolume_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-
         {
             if (_isUpdatingSliders || TxtExpVolumePercent == null) return;
-
             int percent = (int)Math.Round(e.NewValue);
-
             TxtExpVolumePercent.Text = $"{percent}%";
-
             VolumeService.Instance.SetVolume(percent / 100f);
+        }
+
+        private void ExpandedCardVolume_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.OriginalSource is DependencyObject dep && IsChildOf(dep, BtnExpVolumeIcon)) return;
+            if (e.OriginalSource is DependencyObject dep2 && IsChildOf(dep2, SliderExpVolume)) return;
+
+            if (SliderExpVolume != null)
+            {
+                Point pos = e.GetPosition(SliderExpVolume);
+                UpdateSliderValueFromMouse(SliderExpVolume, pos);
+            }
+        }
+
+        private void ExpandedCardBrightness_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.OriginalSource is DependencyObject dep && IsChildOf(dep, SliderExpBrightness)) return;
+
+            if (SliderExpBrightness != null)
+            {
+                Point pos = e.GetPosition(SliderExpBrightness);
+                UpdateSliderValueFromMouse(SliderExpBrightness, pos);
+            }
+        }
+
+        private void HudProgressBar_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _isInteractingWithControl = true;
+            if (HudProgressBar != null)
+            {
+                HudProgressBar.CaptureMouse();
+                UpdateHudValueFromMouse(e.GetPosition(HudProgressBar));
+                e.Handled = true;
+            }
+        }
+
+        private void HudProgressBar_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (HudProgressBar != null && HudProgressBar.IsMouseCaptured && e.LeftButton == MouseButtonState.Pressed)
+            {
+                UpdateHudValueFromMouse(e.GetPosition(HudProgressBar));
+                e.Handled = true;
+            }
+        }
+
+        private void HudProgressBar_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (HudProgressBar != null && HudProgressBar.IsMouseCaptured)
+            {
+                HudProgressBar.ReleaseMouseCapture();
+                _isInteractingWithControl = false;
+                e.Handled = true;
+            }
+        }
+
+        private void UpdateHudValueFromMouse(Point pos)
+        {
+            if (HudProgressBar == null || HudProgressBar.ActualWidth <= 0) return;
+            double ratio = Math.Clamp(pos.X / HudProgressBar.ActualWidth, 0.0, 1.0);
+            int percent = (int)Math.Round(ratio * 100);
+
+            if (_isAdjustingBrightness)
+            {
+                HudProgressBar.Value = percent;
+                TxtHudValue.Text = $"{percent}%";
+                BrightnessService.Instance.SetBrightness(percent);
+            }
+            else
+            {
+                HudProgressBar.Value = percent;
+                TxtHudValue.Text = $"{percent}%";
+                VolumeService.Instance.SetVolume(percent / 100f);
+            }
+
+            _hudAutoDismissTimer.Stop();
+            _hudAutoDismissTimer.Start();
+        }
+
+        private static bool IsChildOf(DependencyObject? obj, DependencyObject? parent)
+        {
+            while (obj != null)
+            {
+                if (obj == parent) return true;
+                if (obj is Visual || obj is System.Windows.Media.Media3D.Visual3D)
+                    obj = VisualTreeHelper.GetParent(obj);
+                else
+                    obj = LogicalTreeHelper.GetParent(obj);
+            }
+            return false;
         }
 
         private void SliderExpBrightness_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -3996,7 +4334,7 @@ namespace DynamicIsland
         private void PrivacyService_PrivacyStatusChanged(object? sender, PrivacyStatusChangedEventArgs e)
 
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.BeginInvoke(() =>
 
             {
                 try
@@ -4544,7 +4882,7 @@ namespace DynamicIsland
         private void LockKeyService_LockKeyChanged(object? sender, LockKeyChangedEventArgs e)
 
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.BeginInvoke(() =>
 
             {
                 if (!SettingsService.Instance.Current.EnableLockKeyNotifications) return;
@@ -4687,6 +5025,8 @@ namespace DynamicIsland
             PrivacyService.Instance.Stop();
 
             LockKeyService.Instance.Stop();
+
+            AudioVisualizerService.Instance.Dispose();
         }
     }
 }

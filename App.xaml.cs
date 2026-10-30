@@ -16,12 +16,17 @@ public partial class App : System.Windows.Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        const string mutexName = "DynamicIsland_SingleInstance_Mutex_App";
+        const string mutexName = "Local\\DynamicIsland_SingleInstance_Mutex_App";
         _singleInstanceMutex = new Mutex(true, mutexName, out bool createdNew);
         if (!createdNew)
         {
-            Shutdown();
-            return;
+            var current = System.Diagnostics.Process.GetCurrentProcess();
+            var running = System.Diagnostics.Process.GetProcessesByName(current.ProcessName);
+            if (running.Length > 1)
+            {
+                Shutdown();
+                return;
+            }
         }
 
         base.OnStartup(e);

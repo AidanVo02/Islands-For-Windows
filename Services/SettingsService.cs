@@ -37,6 +37,7 @@ namespace DynamicIsland.Services
         public bool ShowBattery { get; set; } = true;
         public bool HoverAnimation { get; set; } = true;
         public bool EqualizerEnabled { get; set; } = true;
+        public bool AdaptiveColorGlowEnabled { get; set; } = true;
         public bool AutoSwitchMedia { get; set; } = true;
         public bool VolumeBrightnessHudEnabled { get; set; } = true;
         public bool MouseWheelVolumeEnabled { get; set; } = true;

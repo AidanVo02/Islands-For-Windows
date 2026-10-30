@@ -120,6 +120,7 @@ namespace DynamicIsland
             ChkShowBattery.IsChecked = s.ShowBattery;
             ChkAutoSwitchMedia.IsChecked = s.AutoSwitchMedia;
             ChkEqualizerEnabled.IsChecked = s.EqualizerEnabled;
+            ChkAdaptiveColorGlow.IsChecked = s.AdaptiveColorGlowEnabled;
             ChkVolumeBrightnessHud.IsChecked = s.VolumeBrightnessHudEnabled;
             ChkMouseWheelVolume.IsChecked = s.MouseWheelVolumeEnabled;
             ChkPrivacyIndicators.IsChecked = s.EnablePrivacyIndicators;
@@ -403,6 +404,12 @@ namespace DynamicIsland
         {
             if (_isInitializing) return;
             SettingsService.Instance.Update(s => s.EqualizerEnabled = ChkEqualizerEnabled.IsChecked == true);
+        }
+
+        private void ChkAdaptiveColorGlow_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isInitializing) return;
+            SettingsService.Instance.Update(s => s.AdaptiveColorGlowEnabled = ChkAdaptiveColorGlow.IsChecked == true);
         }
 
         private void ChkVolumeBrightnessHud_Click(object sender, RoutedEventArgs e)

@@ -661,9 +661,24 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
                                         <TextBlock Text="Hoạt ảnh sóng nhạc (Equalizer Waveform)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
-                                        <TextBlock Text="Hiệu ứng 3 cột sóng chuyển động nhịp nhàng theo nhạc đang phát." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                        <TextBlock Text="Phân tích phổ âm thanh FFT 4 dải tần (Bass, Mid, Vocal, Treble) trực tiếp từ loa qua NAudio WasapiLoopback." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
                                     </StackPanel>
                                     <CheckBox x:Name="ChkEqualizerEnabled" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Click="ChkEqualizerEnabled_Click"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Card 4.1: Mau Tac Ke Hoa & Ambient Glow (Adaptive Chameleon Glow) -->
+                            <Border Style="{StaticResource SettingCardBorder}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Màu Tắc Kè Hoa &amp; Quầng sáng (Adaptive Chameleon Glow)" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="13"/>
+                                        <TextBlock Text="Tự động trích xuất màu rực rỡ từ ảnh bìa album để tạo dải màu Gradient cho sóng nhạc và quầng sáng Ambient Glow." Foreground="#808092" FontSize="11" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkAdaptiveColorGlow" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Click="ChkAdaptiveColorGlow_Click"/>
                                 </Grid>
                             </Border>
 

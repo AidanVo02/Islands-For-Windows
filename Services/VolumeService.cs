@@ -1,5 +1,6 @@
 using System;
-using System.Runtime.InteropServices;
+using NAudio.CoreAudioApi;
+using NAudio.CoreAudioApi.Interfaces;
 
 namespace DynamicIsland.Services
 {
@@ -10,14 +11,19 @@ namespace DynamicIsland.Services
         public int VolumePercent => (int)Math.Round(Volume * 100);
     }
 
-    public class VolumeService : IDisposable
+    /// <summary>
+    /// Dịch vụ quản lý âm lượng và Microphone hệ thống sử dụng NAudio CoreAudioApi.
+    /// Tự động bắt sự kiện thay đổi thiết bị (cắm/rút tai nghe, đổi output) và tự phục hồi khi có lỗi COM.
+    /// </summary>
+    public class VolumeService : IDisposable, IMMNotificationClient
     {
         private static readonly Lazy<VolumeService> _lazy = new(() => new VolumeService());
         public static VolumeService Instance => _lazy.Value;
 
-        private IAudioEndpointVolume? _audioEndpointVolume;
-        private AudioEndpointVolumeCallback? _callback;
-        private IAudioEndpointVolume? _micAudioEndpointVolume;
+        private MMDeviceEnumerator? _enumerator;
+        private MMDevice? _playbackDevice;
+        private MMDevice? _captureDevice;
+        private readonly object _lock = new();
         private bool _isDisposed;
 
         public event EventHandler<VolumeChangedEventArgs>? VolumeChanged;
@@ -30,146 +36,162 @@ namespace DynamicIsland.Services
 
         private void Initialize()
         {
-            try
+            lock (_lock)
             {
-                var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
-                // eRender = 0, eMultimedia = 1
-                int hr = enumerator.GetDefaultAudioEndpoint(0, 1, out var device);
-                if (hr == 0 && device != null)
+                try
                 {
-                    Guid iidIAudioEndpointVolume = typeof(IAudioEndpointVolume).GUID;
-                    // CLSCTX_ALL = 23
-                    hr = device.Activate(ref iidIAudioEndpointVolume, 23, IntPtr.Zero, out object volumeObj);
-                    if (hr == 0 && volumeObj is IAudioEndpointVolume audioEndpointVolume)
-                    {
-                        _audioEndpointVolume = audioEndpointVolume;
-                        _callback = new AudioEndpointVolumeCallback(this);
-                        _audioEndpointVolume.RegisterControlChangeNotify(_callback);
-                    }
+                    _enumerator = new MMDeviceEnumerator();
+                    _enumerator.RegisterEndpointNotificationCallback(this);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[VolumeService] Register notification error: {ex.Message}");
                 }
 
-                InitializeMic();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[VolumeService] Init error: {ex.Message}");
+                InitPlaybackDeviceInternal();
+                InitCaptureDeviceInternal();
             }
         }
 
-        public void InitializeMic()
+        private void InitPlaybackDeviceInternal()
         {
             try
             {
-                var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
-                // 1 = eCapture (Microphone), 1 = eMultimedia
-                int hr = enumerator.GetDefaultAudioEndpoint(1, 1, out var micDevice);
-                if (hr == 0 && micDevice != null)
+                if (_playbackDevice != null)
                 {
-                    Guid iidIAudioEndpointVolume = typeof(IAudioEndpointVolume).GUID;
-                    hr = micDevice.Activate(ref iidIAudioEndpointVolume, 23, IntPtr.Zero, out object micObj);
-                    if (hr == 0 && micObj is IAudioEndpointVolume micVol)
+                    try
                     {
-                        _micAudioEndpointVolume = micVol;
+                        _playbackDevice.AudioEndpointVolume.OnVolumeNotification -= AudioEndpointVolume_OnVolumeNotification;
                     }
+                    catch { }
+                    _playbackDevice.Dispose();
+                    _playbackDevice = null;
+                }
+
+                _enumerator ??= new MMDeviceEnumerator();
+                _playbackDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                if (_playbackDevice?.AudioEndpointVolume != null)
+                {
+                    _playbackDevice.AudioEndpointVolume.OnVolumeNotification += AudioEndpointVolume_OnVolumeNotification;
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[VolumeService] InitMic error: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[VolumeService] InitPlaybackDevice error: {ex.Message}");
             }
         }
 
-        public bool IsMicrophoneMuted()
+        private void InitCaptureDeviceInternal()
         {
-            if (_micAudioEndpointVolume == null) InitializeMic();
-            if (_micAudioEndpointVolume == null) return false;
             try
             {
-                _micAudioEndpointVolume.GetMute(out bool isMuted);
-                return isMuted;
-            }
-            catch
-            {
-                return false;
-            }
-        }
+                if (_captureDevice != null)
+                {
+                    _captureDevice.Dispose();
+                    _captureDevice = null;
+                }
 
-        public bool ToggleMicrophoneMute()
-        {
-            if (_micAudioEndpointVolume == null) InitializeMic();
-            if (_micAudioEndpointVolume == null) return false;
-            try
-            {
-                _micAudioEndpointVolume.GetMute(out bool isMuted);
-                bool newMute = !isMuted;
-                Guid empty = Guid.Empty;
-                _micAudioEndpointVolume.SetMute(newMute, ref empty);
-                MicrophoneMuteChanged?.Invoke(this, newMute);
-                return newMute;
+                _enumerator ??= new MMDeviceEnumerator();
+                _captureDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[VolumeService] ToggleMicrophoneMute error: {ex.Message}");
-                return false;
+                System.Diagnostics.Debug.WriteLine($"[VolumeService] InitCaptureDevice error: {ex.Message}");
             }
         }
 
-        public void SetMicrophoneMute(bool isMuted)
+        private void AudioEndpointVolume_OnVolumeNotification(AudioVolumeNotificationData data)
         {
-            if (_micAudioEndpointVolume == null) InitializeMic();
-            if (_micAudioEndpointVolume == null) return;
-            try
+            VolumeChanged?.Invoke(this, new VolumeChangedEventArgs
             {
-                Guid empty = Guid.Empty;
-                _micAudioEndpointVolume.SetMute(isMuted, ref empty);
-                MicrophoneMuteChanged?.Invoke(this, isMuted);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[VolumeService] SetMicrophoneMute error: {ex.Message}");
-            }
+                Volume = data.MasterVolume,
+                IsMuted = data.Muted
+            });
         }
 
         public float GetVolume()
         {
-            if (_audioEndpointVolume == null) return 0f;
-            try
+            lock (_lock)
             {
-                _audioEndpointVolume.GetMasterVolumeLevelScalar(out float level);
-                return level;
-            }
-            catch
-            {
-                return 0f;
+                try
+                {
+                    if (_playbackDevice?.AudioEndpointVolume == null)
+                    {
+                        InitPlaybackDeviceInternal();
+                    }
+                    return _playbackDevice?.AudioEndpointVolume?.MasterVolumeLevelScalar ?? 0f;
+                }
+                catch
+                {
+                    try
+                    {
+                        InitPlaybackDeviceInternal();
+                        return _playbackDevice?.AudioEndpointVolume?.MasterVolumeLevelScalar ?? 0f;
+                    }
+                    catch
+                    {
+                        return 0f;
+                    }
+                }
             }
         }
 
         public bool IsMuted()
         {
-            if (_audioEndpointVolume == null) return false;
-            try
+            lock (_lock)
             {
-                _audioEndpointVolume.GetMute(out bool isMuted);
-                return isMuted;
-            }
-            catch
-            {
-                return false;
+                try
+                {
+                    if (_playbackDevice?.AudioEndpointVolume == null)
+                    {
+                        InitPlaybackDeviceInternal();
+                    }
+                    return _playbackDevice?.AudioEndpointVolume?.Mute ?? false;
+                }
+                catch
+                {
+                    try
+                    {
+                        InitPlaybackDeviceInternal();
+                        return _playbackDevice?.AudioEndpointVolume?.Mute ?? false;
+                    }
+                    catch
+                    {
+                        return false;
+                    }
+                }
             }
         }
 
         public void SetVolume(float level)
         {
-            if (_audioEndpointVolume == null) return;
-            try
+            float target = Math.Clamp(level, 0f, 1f);
+            lock (_lock)
             {
-                level = Math.Clamp(level, 0f, 1f);
-                Guid empty = Guid.Empty;
-                _audioEndpointVolume.SetMasterVolumeLevelScalar(level, ref empty);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[VolumeService] SetVolume error: {ex.Message}");
+                try
+                {
+                    if (_playbackDevice?.AudioEndpointVolume == null)
+                    {
+                        InitPlaybackDeviceInternal();
+                    }
+                    if (_playbackDevice?.AudioEndpointVolume != null)
+                    {
+                        _playbackDevice.AudioEndpointVolume.MasterVolumeLevelScalar = target;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[VolumeService] SetVolume retry: {ex.Message}");
+                    try
+                    {
+                        InitPlaybackDeviceInternal();
+                        if (_playbackDevice?.AudioEndpointVolume != null)
+                        {
+                            _playbackDevice.AudioEndpointVolume.MasterVolumeLevelScalar = target;
+                        }
+                    }
+                    catch { }
+                }
             }
         }
 
@@ -181,160 +203,234 @@ namespace DynamicIsland.Services
 
         public void ToggleMute()
         {
-            if (_audioEndpointVolume == null) return;
-            try
+            lock (_lock)
             {
-                bool current = IsMuted();
-                Guid empty = Guid.Empty;
-                _audioEndpointVolume.SetMute(!current, ref empty);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[VolumeService] ToggleMute error: {ex.Message}");
+                try
+                {
+                    if (_playbackDevice?.AudioEndpointVolume == null)
+                    {
+                        InitPlaybackDeviceInternal();
+                    }
+                    if (_playbackDevice?.AudioEndpointVolume != null)
+                    {
+                        _playbackDevice.AudioEndpointVolume.Mute = !_playbackDevice.AudioEndpointVolume.Mute;
+                    }
+                }
+                catch
+                {
+                    try
+                    {
+                        InitPlaybackDeviceInternal();
+                        if (_playbackDevice?.AudioEndpointVolume != null)
+                        {
+                            _playbackDevice.AudioEndpointVolume.Mute = !_playbackDevice.AudioEndpointVolume.Mute;
+                        }
+                    }
+                    catch { }
+                }
             }
         }
 
-        internal void OnVolumeNotify(float volume, bool isMuted)
+        public bool IsMicrophoneMuted()
         {
-            VolumeChanged?.Invoke(this, new VolumeChangedEventArgs
+            lock (_lock)
             {
-                Volume = volume,
-                IsMuted = isMuted
-            });
+                try
+                {
+                    if (_captureDevice?.AudioEndpointVolume == null)
+                    {
+                        InitCaptureDeviceInternal();
+                    }
+                    return _captureDevice?.AudioEndpointVolume?.Mute ?? false;
+                }
+                catch
+                {
+                    try
+                    {
+                        InitCaptureDeviceInternal();
+                        return _captureDevice?.AudioEndpointVolume?.Mute ?? false;
+                    }
+                    catch
+                    {
+                        return false;
+                    }
+                }
+            }
         }
+
+        public bool ToggleMicrophoneMute()
+        {
+            bool newMute = false;
+            bool success = false;
+            lock (_lock)
+            {
+                try
+                {
+                    if (_captureDevice?.AudioEndpointVolume == null)
+                    {
+                        InitCaptureDeviceInternal();
+                    }
+                    if (_captureDevice?.AudioEndpointVolume != null)
+                    {
+                        newMute = !_captureDevice.AudioEndpointVolume.Mute;
+                        _captureDevice.AudioEndpointVolume.Mute = newMute;
+                        success = true;
+                    }
+                }
+                catch
+                {
+                    try
+                    {
+                        InitCaptureDeviceInternal();
+                        if (_captureDevice?.AudioEndpointVolume != null)
+                        {
+                            newMute = !_captureDevice.AudioEndpointVolume.Mute;
+                            _captureDevice.AudioEndpointVolume.Mute = newMute;
+                            success = true;
+                        }
+                    }
+                    catch { }
+                }
+            }
+
+            if (success)
+            {
+                MicrophoneMuteChanged?.Invoke(this, newMute);
+                return newMute;
+            }
+            return false;
+        }
+
+        public void SetMicrophoneMute(bool isMuted)
+        {
+            bool success = false;
+            lock (_lock)
+            {
+                try
+                {
+                    if (_captureDevice?.AudioEndpointVolume == null)
+                    {
+                        InitCaptureDeviceInternal();
+                    }
+                    if (_captureDevice?.AudioEndpointVolume != null)
+                    {
+                        _captureDevice.AudioEndpointVolume.Mute = isMuted;
+                        success = true;
+                    }
+                }
+                catch
+                {
+                    try
+                    {
+                        InitCaptureDeviceInternal();
+                        if (_captureDevice?.AudioEndpointVolume != null)
+                        {
+                            _captureDevice.AudioEndpointVolume.Mute = isMuted;
+                            success = true;
+                        }
+                    }
+                    catch { }
+                }
+            }
+
+            if (success)
+            {
+                MicrophoneMuteChanged?.Invoke(this, isMuted);
+            }
+        }
+
+        public void InitializeMic()
+        {
+            lock (_lock)
+            {
+                InitCaptureDeviceInternal();
+            }
+        }
+
+        #region IMMNotificationClient Callbacks
+        public void OnDefaultDeviceChanged(DataFlow dataFlow, Role deviceRole, string defaultDeviceId)
+        {
+            if (deviceRole == Role.Multimedia || deviceRole == Role.Console)
+            {
+                float vol = 0f;
+                bool mute = false;
+                bool notifyVol = false;
+                bool micMute = false;
+                bool notifyMic = false;
+
+                lock (_lock)
+                {
+                    if (dataFlow == DataFlow.Render)
+                    {
+                        InitPlaybackDeviceInternal();
+                        vol = GetVolume();
+                        mute = IsMuted();
+                        notifyVol = true;
+                    }
+                    else if (dataFlow == DataFlow.Capture)
+                    {
+                        InitCaptureDeviceInternal();
+                        micMute = IsMicrophoneMuted();
+                        notifyMic = true;
+                    }
+                }
+
+                if (notifyVol)
+                {
+                    VolumeChanged?.Invoke(this, new VolumeChangedEventArgs { Volume = vol, IsMuted = mute });
+                }
+                if (notifyMic)
+                {
+                    MicrophoneMuteChanged?.Invoke(this, micMute);
+                }
+            }
+        }
+
+        public void OnDeviceStateChanged(string deviceId, DeviceState newState) { }
+        public void OnDeviceAdded(string pwstrDeviceId) { }
+        public void OnDeviceRemoved(string deviceId) { }
+        public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key) { }
+        #endregion
 
         public void Dispose()
         {
             if (_isDisposed) return;
             _isDisposed = true;
 
-            try
+            lock (_lock)
             {
-                if (_audioEndpointVolume != null && _callback != null)
+                try
                 {
-                    _audioEndpointVolume.UnregisterControlChangeNotify(_callback);
-                }
-            }
-            catch {}
-        }
-
-        #region COM Interfaces & Classes
-        [ComImport]
-        [Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
-        private class MMDeviceEnumeratorComObject { }
-
-        [Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        private interface IMMDeviceEnumerator
-        {
-            [PreserveSig]
-            int EnumAudioEndpoints(int dataFlow, int stateMask, out IntPtr devices);
-            [PreserveSig]
-            int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice endpoint);
-            [PreserveSig]
-            int GetDevice(string pwstrId, out IMMDevice device);
-            [PreserveSig]
-            int RegisterEndpointNotificationCallback(IntPtr pClient);
-            [PreserveSig]
-            int UnregisterEndpointNotificationCallback(IntPtr pClient);
-        }
-
-        [Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        private interface IMMDevice
-        {
-            [PreserveSig]
-            int Activate(ref Guid iid, int dwClsCtx, IntPtr pActivationParams, [MarshalAs(UnmanagedType.IUnknown)] out object ppInterface);
-            [PreserveSig]
-            int OpenPropertyStore(int stgmAccess, out IntPtr ppProperties);
-            [PreserveSig]
-            int GetId([MarshalAs(UnmanagedType.LPWStr)] out string ppstrId);
-            [PreserveSig]
-            int GetState(out int pdwState);
-        }
-
-        [Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        private interface IAudioEndpointVolume
-        {
-            [PreserveSig]
-            int RegisterControlChangeNotify(IAudioEndpointVolumeCallback pNotify);
-            [PreserveSig]
-            int UnregisterControlChangeNotify(IAudioEndpointVolumeCallback pNotify);
-            [PreserveSig]
-            int GetChannelCount(out uint pnChannelCount);
-            [PreserveSig]
-            int SetMasterVolumeLevel(float fLevelDB, ref Guid pguidEventContext);
-            [PreserveSig]
-            int SetMasterVolumeLevelScalar(float fLevel, ref Guid pguidEventContext);
-            [PreserveSig]
-            int GetMasterVolumeLevel(out float pfLevelDB);
-            [PreserveSig]
-            int GetMasterVolumeLevelScalar(out float pfLevel);
-            [PreserveSig]
-            int SetChannelVolumeLevel(uint nChannel, float fLevelDB, ref Guid pguidEventContext);
-            [PreserveSig]
-            int SetChannelVolumeLevelScalar(uint nChannel, float fLevel, ref Guid pguidEventContext);
-            [PreserveSig]
-            int GetChannelVolumeLevel(uint nChannel, out float pfLevelDB);
-            [PreserveSig]
-            int GetChannelVolumeLevelScalar(uint nChannel, out float pfLevel);
-            [PreserveSig]
-            int SetMute([MarshalAs(UnmanagedType.Bool)] bool bMute, ref Guid pguidEventContext);
-            [PreserveSig]
-            int GetMute([MarshalAs(UnmanagedType.Bool)] out bool pbMute);
-            [PreserveSig]
-            int GetVolumeStepInfo(out uint pnStep, out uint pnStepCount);
-            [PreserveSig]
-            int VolumeStepUp(ref Guid pguidEventContext);
-            [PreserveSig]
-            int VolumeStepDown(ref Guid pguidEventContext);
-            [PreserveSig]
-            int QueryHardwareSupport(out uint pdwHardwareSupportMask);
-            [PreserveSig]
-            int GetVolumeRange(out float pflVolumeMindB, out float pflVolumeMaxdB, out float pflVolumeIncrementdB);
-        }
-
-        [Guid("657804FA-D6AD-4496-8A60-352752AF4F89"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        private interface IAudioEndpointVolumeCallback
-        {
-            [PreserveSig]
-            int OnNotify(IntPtr pNotifyData);
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct AUDIO_VOLUME_NOTIFICATION_DATA
-        {
-            public Guid guidEventContext;
-            public int bMuted;
-            public float fMasterVolume;
-            public uint nChannels;
-        }
-
-        [ComVisible(true)]
-        private class AudioEndpointVolumeCallback : IAudioEndpointVolumeCallback
-        {
-            private readonly VolumeService _owner;
-
-            public AudioEndpointVolumeCallback(VolumeService owner)
-            {
-                _owner = owner;
-            }
-
-            public int OnNotify(IntPtr pNotifyData)
-            {
-                if (pNotifyData != IntPtr.Zero)
-                {
-                    try
+                    if (_playbackDevice != null)
                     {
-                        var data = Marshal.PtrToStructure<AUDIO_VOLUME_NOTIFICATION_DATA>(pNotifyData);
-                        _owner.OnVolumeNotify(data.fMasterVolume, data.bMuted != 0);
+                        try
+                        {
+                            _playbackDevice.AudioEndpointVolume.OnVolumeNotification -= AudioEndpointVolume_OnVolumeNotification;
+                        }
+                        catch { }
+                        _playbackDevice.Dispose();
+                        _playbackDevice = null;
                     }
-                    catch (Exception ex)
+
+                    if (_captureDevice != null)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[VolumeService] OnNotify error: {ex.Message}");
+                        _captureDevice.Dispose();
+                        _captureDevice = null;
+                    }
+
+                    if (_enumerator != null)
+                    {
+                        try
+                        {
+                            _enumerator.UnregisterEndpointNotificationCallback(this);
+                        }
+                        catch { }
+                        _enumerator.Dispose();
+                        _enumerator = null;
                     }
                 }
-                return 0; // S_OK
+                catch { }
             }
         }
-        #endregion
     }
 }
