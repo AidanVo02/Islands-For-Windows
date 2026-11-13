@@ -18,6 +18,11 @@ namespace DynamicIsland.Services
         public string SourceAppId { get; set; } = string.Empty;
     }
 
+    /// <summary>
+    /// Dịch vụ kết nối Windows Media Transport Controls (WinRT SMTC).
+    /// Bọc toàn bộ các lời gọi API và sự kiện trong try-catch phòng chống COMException
+    /// khi các ứng dụng phát nhạc (Spotify, Chrome, YouTube...) bị tắt đột ngột.
+    /// </summary>
     public class MediaService
     {
         private GlobalSystemMediaTransportControlsSessionManager? _sessionManager;
@@ -48,56 +53,102 @@ namespace DynamicIsland.Services
 
         private void SessionManager_CurrentSessionChanged(GlobalSystemMediaTransportControlsSessionManager sender, CurrentSessionChangedEventArgs args)
         {
-            UpdateCurrentSession(sender.GetCurrentSession());
+            try
+            {
+                UpdateCurrentSession(sender.GetCurrentSession());
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"SessionManager_CurrentSessionChanged error: {ex.Message}");
+            }
         }
 
         private void UpdateCurrentSession(GlobalSystemMediaTransportControlsSession? session)
         {
-            if (_currentSession != null)
+            try
             {
-                _currentSession.MediaPropertiesChanged -= CurrentSession_MediaPropertiesChanged;
-                _currentSession.PlaybackInfoChanged -= CurrentSession_PlaybackInfoChanged;
-                _currentSession.TimelinePropertiesChanged -= CurrentSession_TimelinePropertiesChanged;
+                if (_currentSession != null)
+                {
+                    try
+                    {
+                        _currentSession.MediaPropertiesChanged -= CurrentSession_MediaPropertiesChanged;
+                        _currentSession.PlaybackInfoChanged -= CurrentSession_PlaybackInfoChanged;
+                        _currentSession.TimelinePropertiesChanged -= CurrentSession_TimelinePropertiesChanged;
+                    }
+                    catch { }
+                }
+
+                _currentSession = session;
+
+                if (_currentSession != null)
+                {
+                    try
+                    {
+                        _currentSession.MediaPropertiesChanged += CurrentSession_MediaPropertiesChanged;
+                        _currentSession.PlaybackInfoChanged += CurrentSession_PlaybackInfoChanged;
+                        _currentSession.TimelinePropertiesChanged += CurrentSession_TimelinePropertiesChanged;
+
+                        _ = RefreshMediaPropertiesAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error subscribing to current session: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    CurrentTrack = new MediaTrackInfo { IsPlaying = false };
+                    MediaTrackChanged?.Invoke(CurrentTrack);
+                }
             }
-
-            _currentSession = session;
-
-            if (_currentSession != null)
+            catch (Exception ex)
             {
-                _currentSession.MediaPropertiesChanged += CurrentSession_MediaPropertiesChanged;
-                _currentSession.PlaybackInfoChanged += CurrentSession_PlaybackInfoChanged;
-                _currentSession.TimelinePropertiesChanged += CurrentSession_TimelinePropertiesChanged;
-
-                _ = RefreshMediaPropertiesAsync();
-            }
-            else
-            {
-                CurrentTrack = new MediaTrackInfo { IsPlaying = false };
-                MediaTrackChanged?.Invoke(CurrentTrack);
+                System.Diagnostics.Debug.WriteLine($"UpdateCurrentSession error: {ex.Message}");
             }
         }
 
         private async void CurrentSession_MediaPropertiesChanged(GlobalSystemMediaTransportControlsSession sender, MediaPropertiesChangedEventArgs args)
         {
-            await RefreshMediaPropertiesAsync();
+            try
+            {
+                await RefreshMediaPropertiesAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"CurrentSession_MediaPropertiesChanged error: {ex.Message}");
+            }
         }
 
         private void CurrentSession_PlaybackInfoChanged(GlobalSystemMediaTransportControlsSession sender, PlaybackInfoChangedEventArgs args)
         {
-            var playbackInfo = sender.GetPlaybackInfo();
-            bool isPlaying = playbackInfo?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
-            CurrentTrack.IsPlaying = isPlaying;
-            PlaybackStateChanged?.Invoke(isPlaying);
+            try
+            {
+                var playbackInfo = sender.GetPlaybackInfo();
+                bool isPlaying = playbackInfo?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+                CurrentTrack.IsPlaying = isPlaying;
+                PlaybackStateChanged?.Invoke(isPlaying);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"CurrentSession_PlaybackInfoChanged error: {ex.Message}");
+            }
         }
 
         private void CurrentSession_TimelinePropertiesChanged(GlobalSystemMediaTransportControlsSession sender, TimelinePropertiesChangedEventArgs args)
         {
-            var timeline = sender.GetTimelineProperties();
-            if (timeline != null)
+            try
             {
-                CurrentTrack.Position = timeline.Position;
-                CurrentTrack.Duration = timeline.EndTime;
-                TimelineChanged?.Invoke(timeline.Position, timeline.EndTime);
+                var timeline = sender.GetTimelineProperties();
+                if (timeline != null)
+                {
+                    CurrentTrack.Position = timeline.Position;
+                    CurrentTrack.Duration = timeline.EndTime;
+                    TimelineChanged?.Invoke(timeline.Position, timeline.EndTime);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"CurrentSession_TimelinePropertiesChanged error: {ex.Message}");
             }
         }
 
@@ -119,6 +170,13 @@ namespace DynamicIsland.Services
 
                 bool isPlaying = playback?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
 
+                string appId = string.Empty;
+                try
+                {
+                    appId = _currentSession.SourceAppUserModelId ?? string.Empty;
+                }
+                catch { }
+
                 CurrentTrack = new MediaTrackInfo
                 {
                     Title = string.IsNullOrWhiteSpace(props?.Title) ? "Unknown Track" : props.Title,
@@ -127,7 +185,7 @@ namespace DynamicIsland.Services
                     IsPlaying = isPlaying,
                     Position = timeline?.Position ?? TimeSpan.Zero,
                     Duration = timeline?.EndTime ?? TimeSpan.Zero,
-                    SourceAppId = _currentSession.SourceAppUserModelId ?? string.Empty
+                    SourceAppId = appId
                 };
 
                 MediaTrackChanged?.Invoke(CurrentTrack);
@@ -153,7 +211,7 @@ namespace DynamicIsland.Services
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
                 bitmap.StreamSource = memoryStream;
                 bitmap.EndInit();
-                bitmap.Freeze(); // Cho phép dùng trên mọi UI thread
+                bitmap.Freeze(); // Cho phép dùng an toàn trên mọi UI thread
                 return bitmap;
             }
             catch
@@ -164,25 +222,46 @@ namespace DynamicIsland.Services
 
         public async Task TogglePlayPauseAsync()
         {
-            if (_currentSession != null)
+            try
             {
-                await _currentSession.TryTogglePlayPauseAsync();
+                if (_currentSession != null)
+                {
+                    await _currentSession.TryTogglePlayPauseAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"TogglePlayPauseAsync error: {ex.Message}");
             }
         }
 
         public async Task SkipNextAsync()
         {
-            if (_currentSession != null)
+            try
             {
-                await _currentSession.TrySkipNextAsync();
+                if (_currentSession != null)
+                {
+                    await _currentSession.TrySkipNextAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"SkipNextAsync error: {ex.Message}");
             }
         }
 
         public async Task SkipPreviousAsync()
         {
-            if (_currentSession != null)
+            try
             {
-                await _currentSession.TrySkipPreviousAsync();
+                if (_currentSession != null)
+                {
+                    await _currentSession.TrySkipPreviousAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"SkipPreviousAsync error: {ex.Message}");
             }
         }
 

@@ -93,47 +93,62 @@ namespace DynamicIsland.Services
             // Phát event ngay lập tức để HUD và UI phản hồi 0ms
             BrightnessChanged?.Invoke(this, new BrightnessChangedEventArgs { Brightness = brightness });
 
+            var debounceCts = new System.Threading.CancellationTokenSource();
             lock (_brightnessLock)
             {
                 _brightnessCts?.Cancel();
-                _brightnessCts = new System.Threading.CancellationTokenSource();
-                var token = _brightnessCts.Token;
+                _brightnessCts = debounceCts;
+            }
 
-                Task.Run(async () =>
+            _ = SetBrightnessAfterDebounceAsync(brightness, debounceCts);
+        }
+
+        private async Task SetBrightnessAfterDebounceAsync(int brightness, System.Threading.CancellationTokenSource debounceCts)
+        {
+            try
+            {
+                // Debounce 50ms để tránh nghẽn WMI/DXVA2 khi kéo slider liên tục.
+                await Task.Delay(50, debounceCts.Token).ConfigureAwait(false);
+                if (debounceCts.IsCancellationRequested) return;
+
+                bool success = false;
+                try
                 {
-                    try
+                    using var searcher = new ManagementObjectSearcher(@"root\wmi", "SELECT * FROM WmiMonitorBrightnessMethods WHERE Active = TRUE");
+                    foreach (ManagementObject obj in searcher.Get())
                     {
-                        // Debounce 40ms để tránh nghẽn WMI/DXVA2 khi kéo slider liên tục
-                        await Task.Delay(40, token);
+                        if (debounceCts.IsCancellationRequested) return;
+                        obj.InvokeMethod("WmiSetBrightness", new object[] { 1u, (byte)brightness });
+                        success = true;
+                        break;
                     }
-                    catch (OperationCanceledException)
-                    {
-                        return;
-                    }
+                }
+                catch { }
 
-                    if (token.IsCancellationRequested) return;
-
-                    bool success = false;
-                    try
+                if (!success && !debounceCts.IsCancellationRequested)
+                {
+                    success = SetDesktopMonitorBrightness(brightness);
+                    if (!success)
                     {
-                        // Cách 1: WMI (Laptop)
-                        using var searcher = new ManagementObjectSearcher(@"root\wmi", "SELECT * FROM WmiMonitorBrightnessMethods WHERE Active = TRUE");
-                        foreach (ManagementObject obj in searcher.Get())
-                        {
-                            if (token.IsCancellationRequested) return;
-                            obj.InvokeMethod("WmiSetBrightness", new object[] { 1u, (byte)brightness });
-                            success = true;
-                            break;
-                        }
+                        SetSoftwareGammaBrightness(brightness);
                     }
-                    catch {}
-
-                    if (!success && !token.IsCancellationRequested)
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // A newer slider value superseded this pending update.
+            }
+            finally
+            {
+                lock (_brightnessLock)
+                {
+                    if (ReferenceEquals(_brightnessCts, debounceCts))
                     {
-                        // Cách 2: dxva2.dll (Desktop monitor)
-                        SetDesktopMonitorBrightness(brightness);
+                        _brightnessCts = null;
                     }
-                }, token);
+                }
+
+                debounceCts.Dispose();
             }
         }
 
@@ -201,24 +216,24 @@ namespace DynamicIsland.Services
             return -1;
         }
 
-        private void SetDesktopMonitorBrightness(int percent)
+        private bool SetDesktopMonitorBrightness(int percent)
         {
             try
             {
                 IntPtr hMonitor = MonitorFromWindow(IntPtr.Zero, 1);
-                if (hMonitor == IntPtr.Zero) return;
+                if (hMonitor == IntPtr.Zero) return false;
 
-                if (!GetNumberOfPhysicalMonitorsFromHMONITOR(hMonitor, out uint count) || count == 0) return;
+                if (!GetNumberOfPhysicalMonitorsFromHMONITOR(hMonitor, out uint count) || count == 0) return false;
 
                 var monitors = new PHYSICAL_MONITOR[count];
-                if (!GetPhysicalMonitorsFromHMONITOR(hMonitor, count, monitors)) return;
+                if (!GetPhysicalMonitorsFromHMONITOR(hMonitor, count, monitors)) return false;
 
                 try
                 {
                     if (GetMonitorBrightness(monitors[0].hPhysicalMonitor, out uint min, out uint cur, out uint max))
                     {
                         uint target = min + (uint)((max - min) * (percent / 100.0));
-                        SetMonitorBrightness(monitors[0].hPhysicalMonitor, target);
+                        return SetMonitorBrightness(monitors[0].hPhysicalMonitor, target);
                     }
                 }
                 finally
@@ -227,7 +242,60 @@ namespace DynamicIsland.Services
                 }
             }
             catch {}
+            return false;
         }
+
+        #region Software Gamma Ramp Fallback (For monitors without DDC/CI)
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+        private struct RAMP
+        {
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 256)]
+            public ushort[] Red;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 256)]
+            public ushort[] Green;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 256)]
+            public ushort[] Blue;
+        }
+
+        [DllImport("gdi32.dll")]
+        private static extern bool SetDeviceGammaRamp(IntPtr hDC, ref RAMP lpRamp);
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetDC(IntPtr hWnd);
+        [DllImport("user32.dll")]
+        private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
+
+        private void SetSoftwareGammaBrightness(int percent)
+        {
+            try
+            {
+                IntPtr hdc = GetDC(IntPtr.Zero);
+                if (hdc == IntPtr.Zero) return;
+                try
+                {
+                    double factor = Math.Clamp(percent / 100.0, 0.15, 1.0);
+                    var ramp = new RAMP
+                    {
+                        Red = new ushort[256],
+                        Green = new ushort[256],
+                        Blue = new ushort[256]
+                    };
+                    for (int i = 0; i < 256; i++)
+                    {
+                        ushort val = (ushort)Math.Clamp((int)(i * factor * 256.0), 0, 65535);
+                        ramp.Red[i] = val;
+                        ramp.Green[i] = val;
+                        ramp.Blue[i] = val;
+                    }
+                    SetDeviceGammaRamp(hdc, ref ramp);
+                }
+                finally
+                {
+                    ReleaseDC(IntPtr.Zero, hdc);
+                }
+            }
+            catch { }
+        }
+        #endregion
         #endregion
     }
 }

@@ -11,6 +11,10 @@
         ResizeMode="NoResize"
         WindowStartupLocation="Manual"
         AllowDrop="True"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        RenderOptions.ClearTypeHint="Enabled"
         Loaded="Window_Loaded"
         Closed="Window_Closed"
         KeyDown="Window_KeyDown">
@@ -96,7 +100,66 @@
             </Setter>
         </Style>
 
-        <!-- Modern iOS Pill Slider Style for Control Center -->
+        <!-- Round Header Button Style (28x28 Fluent Style) -->
+        <Style x:Key="RoundHeaderButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width" Value="28"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="14">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#1FFFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#33FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Quick Action Tile Style (46px cao, viền mờ Glassmorphism) -->
+        <Style x:Key="QuickActionTileStyle" TargetType="Button">
+            <Setter Property="Background" Value="#14FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#18FFFFFF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Height" Value="46"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="tileBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="tileBorder" Property="Background" Value="#22FFFFFF"/>
+                                <Setter TargetName="tileBorder" Property="BorderBrush" Value="#30FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="tileBorder" Property="Background" Value="#35FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Modern iOS Pill Slider Style for Control Center (Không khe hở Track & Thumb) -->
         <Style x:Key="PillSliderStyle" TargetType="Slider">
             <Setter Property="Focusable" Value="False"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
@@ -108,7 +171,7 @@
                     <ControlTemplate TargetType="Slider">
                         <Grid VerticalAlignment="Center">
                             <!-- Background Track bo tròn 4 góc -->
-                            <Border Height="14" Background="#28282C" CornerRadius="7" ClipToBounds="True"/>
+                            <Border Height="12" Background="#28282C" CornerRadius="6" ClipToBounds="True"/>
                             
                             <!-- Track & Thumb -->
                             <Track x:Name="PART_Track">
@@ -116,7 +179,7 @@
                                     <RepeatButton Command="Slider.DecreaseLarge" Foreground="{TemplateBinding Foreground}" Focusable="False">
                                         <RepeatButton.Template>
                                             <ControlTemplate TargetType="RepeatButton">
-                                                <Border Height="14" Background="{TemplateBinding Foreground}" CornerRadius="7"/>
+                                                <Border Height="12" Background="{TemplateBinding Foreground}" CornerRadius="6,0,0,6" Margin="0,0,-8,0"/>
                                             </ControlTemplate>
                                         </RepeatButton.Template>
                                     </RepeatButton>
@@ -125,22 +188,63 @@
                                     <RepeatButton Command="Slider.IncreaseLarge" Focusable="False">
                                         <RepeatButton.Template>
                                             <ControlTemplate TargetType="RepeatButton">
-                                                <Border Height="14" Background="Transparent"/>
+                                                <Border Height="12" Background="Transparent"/>
                                             </ControlTemplate>
                                         </RepeatButton.Template>
                                     </RepeatButton>
                                 </Track.IncreaseRepeatButton>
                                 <Track.Thumb>
-                                    <Thumb Width="24" Height="24" Cursor="Hand" Focusable="False">
+                                    <Thumb Width="16" Height="16" Cursor="Hand" Focusable="False">
                                         <Thumb.Template>
                                             <ControlTemplate TargetType="Thumb">
-                                                <Grid Width="24" Height="24" Background="Transparent">
-                                                    <Ellipse Fill="#FFFFFF" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <Grid x:Name="ThumbRoot" Width="16" Height="16" Background="Transparent" RenderTransformOrigin="0.5,0.5">
+                                                    <Grid.RenderTransform>
+                                                        <ScaleTransform ScaleX="1.0" ScaleY="1.0"/>
+                                                    </Grid.RenderTransform>
+                                                    <Ellipse x:Name="ThumbEllipse" Fill="#FFFFFF" Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <Ellipse.Effect>
-                                                            <DropShadowEffect BlurRadius="6" ShadowDepth="1" Opacity="0.45" Color="#000000"/>
+                                                            <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.4" Color="#000000"/>
                                                         </Ellipse.Effect>
                                                     </Ellipse>
                                                 </Grid>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Trigger.EnterActions>
+                                                            <BeginStoryboard>
+                                                                <Storyboard>
+                                                                    <DoubleAnimation Storyboard.TargetName="ThumbRoot" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1.15" Duration="0:0:0.12"/>
+                                                                    <DoubleAnimation Storyboard.TargetName="ThumbRoot" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1.15" Duration="0:0:0.12"/>
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </Trigger.EnterActions>
+                                                        <Trigger.ExitActions>
+                                                            <BeginStoryboard>
+                                                                <Storyboard>
+                                                                    <DoubleAnimation Storyboard.TargetName="ThumbRoot" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1.0" Duration="0:0:0.12"/>
+                                                                    <DoubleAnimation Storyboard.TargetName="ThumbRoot" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1.0" Duration="0:0:0.12"/>
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </Trigger.ExitActions>
+                                                    </Trigger>
+                                                    <Trigger Property="IsDragging" Value="True">
+                                                        <Trigger.EnterActions>
+                                                            <BeginStoryboard>
+                                                                <Storyboard>
+                                                                    <DoubleAnimation Storyboard.TargetName="ThumbRoot" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1.18" Duration="0:0:0.1"/>
+                                                                    <DoubleAnimation Storyboard.TargetName="ThumbRoot" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1.18" Duration="0:0:0.1"/>
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </Trigger.EnterActions>
+                                                        <Trigger.ExitActions>
+                                                            <BeginStoryboard>
+                                                                <Storyboard>
+                                                                    <DoubleAnimation Storyboard.TargetName="ThumbRoot" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1.0" Duration="0:0:0.1"/>
+                                                                    <DoubleAnimation Storyboard.TargetName="ThumbRoot" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1.0" Duration="0:0:0.1"/>
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </Trigger.ExitActions>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
                                             </ControlTemplate>
                                         </Thumb.Template>
                                     </Thumb>
@@ -247,7 +351,7 @@
                 Height="36"
                 CornerRadius="18"
                 Background="#080809"
-                BorderBrush="#2A2A30"
+                BorderBrush="#18FFFFFF"
                 BorderThickness="1"
                 ClipToBounds="True"
                 Cursor="Hand"
@@ -389,8 +493,12 @@
                 </Grid>
 
                 <!-- 3. EXPANDED CONTROL CENTER VIEW (Volume, Brightness & System Status) -->
-                <Grid x:Name="ExpandedControlCenterView" Visibility="Collapsed" Margin="16,12,16,12">
+                <Grid x:Name="ExpandedControlCenterView" Visibility="Collapsed" Margin="16,12,16,12" RenderTransformOrigin="0.5,0.5">
+                    <Grid.RenderTransform>
+                        <TranslateTransform x:Name="ControlCenterTranslate" X="0" Y="0"/>
+                    </Grid.RenderTransform>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -399,8 +507,8 @@
 
                     <!-- Row 0: Top Header with Device/Status, Center Clock & Quick Actions -->
                     <Grid Grid.Row="0" Margin="0,0,0,10">
-                        <!-- 1. Absolute Center Clock (Đồng hồ luôn nằm chuẩn 100% chính giữa Header, không bị đẩy lệch hay chèn ép) -->
-                        <TextBlock x:Name="TxtExpClock" Text="12:00" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="20" 
+                        <!-- 1. Absolute Center Clock (Đồng hồ luôn nằm chuẩn 100% chính giữa Header) -->
+                        <TextBlock x:Name="TxtExpClock" Text="12:00" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="19"
                                    HorizontalAlignment="Center" VerticalAlignment="Center" 
                                    FontFamily="Segoe UI Variable Display, Segoe UI" IsHitTestVisible="False"
                                    Typography.NumeralAlignment="Tabular"
@@ -411,30 +519,28 @@
                         <DockPanel LastChildFill="False" VerticalAlignment="Center">
                             <!-- Left: Badge status & Battery -->
                             <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
-                                <!-- Circular Control Center Icon Badge (Tròn đều 26x26, icon ở chính giữa) -->
-                                <Border Width="26" Height="26" CornerRadius="13" Background="#1C1C1E" BorderBrush="#2C2C2E" BorderThickness="1" VerticalAlignment="Center" Margin="0,0,8,0">
-                                    <TextBlock Text="&#xE9E9;" Style="{StaticResource FluentIconStyle}" FontSize="12" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <!-- Circular Control Center Icon Badge (Tròn đều 28x28) -->
+                                <Border Width="28" Height="28" CornerRadius="14" Background="#14FFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" VerticalAlignment="Center" Margin="0,0,8,0">
+                                    <TextBlock Text="&#xE9E9;" Style="{StaticResource FluentIconStyle}" FontSize="13" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 
-                                <!-- Battery Badge (Màu xanh lá đặc trưng cho pin) -->
-                                <Border x:Name="ExpBatteryBadge" Height="26" CornerRadius="13" Background="#152A1C" BorderBrush="#245832" BorderThickness="1" Padding="8,0,8,0" VerticalAlignment="Center">
+                                <!-- Battery / Power Badge (Viền tinh tế #332ECC71, nền mờ #152A1C) -->
+                                <Border x:Name="ExpBatteryBadge" Height="28" CornerRadius="14" Background="#152A1C" BorderBrush="#332ECC71" BorderThickness="1" Padding="8,0,9,0" VerticalAlignment="Center">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock x:Name="TxtExpBatteryIcon" Text="&#xE860;" Style="{StaticResource FluentIconStyle}" FontSize="12" Margin="0,0,5,0" Foreground="#34C759" VerticalAlignment="Center"/>
-                                        <TextBlock x:Name="TxtExpBatteryText" Text="100%" Foreground="#34C759" FontWeight="Bold" FontSize="11" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="TxtExpBatteryIcon" Text="&#xE83E;" Style="{StaticResource FluentIconStyle}" FontSize="12" Margin="0,0,5,0" Foreground="#2ECC71" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="TxtExpBatteryText" Text="Nguồn AC" Foreground="#2ECC71" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
 
-                            <!-- Right: Action Buttons (Căn phải thẳng hàng) -->
+                            <!-- Right: Action Buttons (28x28 tròn đều) -->
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                <!-- Privacy Alert Badge in Control Center (Glow Neon & Breathing Pulse) -->
-                                <Border x:Name="ExpPrivacyBadge" Height="26" CornerRadius="13" Background="#2434C759" BorderBrush="#34C759" BorderThickness="1" Padding="7,0,8,0" Margin="0,0,7,0" VerticalAlignment="Center" Visibility="Collapsed" Cursor="Hand" MouseLeftButtonUp="ExpPrivacyBadge_MouseLeftButtonUp">
-                                    <!-- Aura Glow xung quanh background của badge -->
+                                <!-- Privacy Alert Badge in Control Center -->
+                                <Border x:Name="ExpPrivacyBadge" Height="28" CornerRadius="14" Background="#2434C759" BorderBrush="#34C759" BorderThickness="1" Padding="7,0,8,0" Margin="0,0,6,0" VerticalAlignment="Center" Visibility="Collapsed" Cursor="Hand" MouseLeftButtonUp="ExpPrivacyBadge_MouseLeftButtonUp">
                                     <Border.Effect>
                                         <DropShadowEffect x:Name="ExpPrivacyGlow" Color="#34C759" BlurRadius="12" ShadowDepth="0" Opacity="0.55"/>
                                     </Border.Effect>
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <!-- Chấm xanh lá có ScaleTransform và Glow riêng để thở nhịp nhàng -->
                                         <Border Width="10" Height="10" Margin="0,0,5,0" VerticalAlignment="Center">
                                             <Ellipse x:Name="ExpPrivacyDot" Width="6" Height="6" Fill="#34C759" HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
                                                 <Ellipse.RenderTransform>
@@ -455,91 +561,139 @@
                                     </Border.ToolTip>
                                 </Border>
 
-                                <!-- Global Mic Mute Toggle Button (Chỉ Icon 26x26 tròn đều, đổi icon và màu khi Mute) -->
-                                <Button x:Name="BtnGlobalMicMute" Style="{StaticResource IslandButtonStyle}" Width="26" Height="26" Click="BtnGlobalMicMute_Click" ToolTip="Tắt / Bật Micro toàn hệ thống" Margin="0,0,6,0" VerticalAlignment="Center">
-                                    <TextBlock x:Name="TxtGlobalMicIcon" Text="&#xE720;" Style="{StaticResource FluentIconStyle}" FontSize="12" Foreground="#34C759" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <!-- Global Mic Mute Toggle Button (Tròn 28x28, đổi màu khi Mute) -->
+                                <Button x:Name="BtnGlobalMicMute" Style="{StaticResource RoundHeaderButtonStyle}" Click="BtnGlobalMicMute_Click" ToolTip="Tắt / Bật Micro toàn hệ thống" Margin="0,0,5,0" VerticalAlignment="Center">
+                                    <TextBlock x:Name="TxtGlobalMicIcon" Text="&#xE720;" Style="{StaticResource FluentIconStyle}" FontSize="13" Foreground="#2ECC71" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Button>
 
-                                <!-- Settings Button -->
-                                <Button Style="{StaticResource IslandButtonStyle}" Width="26" Height="26" Click="BtnSettings_Click" Margin="0,0,4,0" ToolTip="Cài đặt" VerticalAlignment="Center">
-                                    <TextBlock Text="&#xE713;" Style="{StaticResource FluentIconStyle}" FontSize="11" Foreground="#888898" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <!-- Settings Button (Tròn 28x28) -->
+                                <Button Style="{StaticResource RoundHeaderButtonStyle}" Click="BtnSettings_Click" Margin="0,0,5,0" ToolTip="Cài đặt" VerticalAlignment="Center">
+                                    <TextBlock Text="&#xE713;" Style="{StaticResource FluentIconStyle}" FontSize="12" Foreground="#AEAEB2" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Button>
 
-                                <!-- Collapse Button -->
-                                <Button Style="{StaticResource IslandButtonStyle}" Width="26" Height="26" Click="BtnCollapse_Click" ToolTip="Thu nhỏ" VerticalAlignment="Center">
-                                    <TextBlock Text="&#xE711;" Style="{StaticResource FluentIconStyle}" FontSize="10" Foreground="#888898" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <!-- Collapse Button (Tròn 28x28) -->
+                                <Button Style="{StaticResource RoundHeaderButtonStyle}" Click="BtnCollapse_Click" ToolTip="Thu nhỏ" VerticalAlignment="Center">
+                                    <TextBlock Text="&#xE711;" Style="{StaticResource FluentIconStyle}" FontSize="11" Foreground="#AEAEB2" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Button>
                             </StackPanel>
                         </DockPanel>
                     </Grid>
 
-                    <!-- Row 1: Volume Slider Card (Cân xứng tuyệt đối 2 bên: 42px - * - 42px) -->
-                    <Border x:Name="ExpandedCardVolume" Grid.Row="1" Background="#161618" BorderBrush="#262628" BorderThickness="1" CornerRadius="12" Padding="12,6,12,6" Margin="0,0,0,8" Cursor="Hand" PreviewMouseLeftButtonDown="ExpandedCardVolume_PreviewMouseLeftButtonDown">
+                    <!-- Row 1: Volume Slider Card (Viền kính mờ sang trọng) -->
+                    <Border x:Name="ExpandedCardVolume" Grid.Row="1" Background="#14FFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="12" Padding="12,6,12,6" Margin="0,0,0,8" Cursor="Hand" PreviewMouseLeftButtonDown="ExpandedCardVolume_PreviewMouseLeftButtonDown" PreviewMouseWheel="ExpandedCardVolume_PreviewMouseWheel">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="42"/>
+                                <ColumnDefinition Width="38"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="42"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
                             <!-- Mute / Unmute Button -->
-                            <Button x:Name="BtnExpVolumeIcon" Grid.Column="0" Style="{StaticResource IslandButtonStyle}" Width="28" Height="28" Click="BtnExpVolumeIcon_Click" ToolTip="Bật / Tắt tiếng" HorizontalAlignment="Left" VerticalAlignment="Center">
-                                <TextBlock x:Name="TxtExpVolumeIcon" Text="&#xE994;" Style="{StaticResource FluentIconStyle}" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <Button x:Name="BtnExpVolumeIcon" Grid.Column="0" Style="{StaticResource IslandButtonStyle}" Width="28" Height="28" Click="BtnExpVolumeIcon_Click" ToolTip="Bật / Tắt tiếng (Click để Mute)" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                <TextBlock x:Name="TxtExpVolumeIcon" Text="&#xE767;" Style="{StaticResource FluentIconStyle}" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Button>
 
-                            <!-- Interactive Volume Slider (Nằm chính giữa card) -->
+                            <!-- Interactive Volume Slider (Nối liền mạch vào tâm của Thumb) -->
                             <Slider x:Name="SliderExpVolume" Grid.Column="1" Minimum="0" Maximum="100" Value="50" Foreground="#FFFFFF" Style="{StaticResource PillSliderStyle}" 
                                     VerticalAlignment="Center" Margin="4,0,4,0"
                                     ValueChanged="SliderExpVolume_ValueChanged"/>
 
-                            <!-- Percent Text (Cân xứng với icon bên trái) -->
-                            <TextBlock x:Name="TxtExpVolumePercent" Grid.Column="2" Text="50%" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" Width="40" TextAlignment="Right"/>
+                            <!-- Percent Text & Audio Output Switcher Dropdown Button -->
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="4,0,0,0">
+                                <TextBlock x:Name="TxtExpVolumePercent" Text="50%" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12" Width="32" TextAlignment="Right" VerticalAlignment="Center"/>
+                                <Button x:Name="BtnAudioDeviceDropdown" Style="{StaticResource IslandButtonStyle}" Width="22" Height="22" Margin="3,0,0,0" Click="BtnAudioDeviceDropdown_Click" ToolTip="Đổi thiết bị đầu ra âm thanh" VerticalAlignment="Center">
+                                    <TextBlock Text="&#xE70D;" Style="{StaticResource FluentIconStyle}" FontSize="10" Foreground="#8E8E93" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Button>
+                            </StackPanel>
                         </Grid>
                     </Border>
 
-                    <!-- Row 2: Brightness Slider Card (Cân xứng tuyệt đối 2 bên: 42px - * - 42px) -->
-                    <Border x:Name="ExpandedCardBrightness" Grid.Row="2" Background="#161618" BorderBrush="#262628" BorderThickness="1" CornerRadius="12" Padding="12,6,12,6" Margin="0,0,0,8" Cursor="Hand" PreviewMouseLeftButtonDown="ExpandedCardBrightness_PreviewMouseLeftButtonDown">
+                    <!-- Row 2: Brightness Slider Card (Viền kính mờ sang trọng) -->
+                    <Border x:Name="ExpandedCardBrightness" Grid.Row="2" Background="#14FFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="12" Padding="12,6,12,6" Margin="0,0,0,8" Cursor="Hand" PreviewMouseLeftButtonDown="ExpandedCardBrightness_PreviewMouseLeftButtonDown" PreviewMouseWheel="ExpandedCardBrightness_PreviewMouseWheel">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="42"/>
+                                <ColumnDefinition Width="38"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="42"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- Sun Icon (Màu vàng ánh dương đặc trưng của độ sáng) -->
-                            <Button Grid.Column="0" Style="{StaticResource IslandButtonStyle}" Width="28" Height="28" ToolTip="Độ sáng màn hình" HorizontalAlignment="Left" VerticalAlignment="Center">
+                            <!-- Sun Icon (Click để chuyển nhanh các mức sáng) -->
+                            <Button x:Name="BtnExpBrightnessIcon" Grid.Column="0" Style="{StaticResource IslandButtonStyle}" Width="28" Height="28" Click="BtnExpBrightnessIcon_Click" ToolTip="Độ sáng màn hình (Click để chuyển mức sáng)" HorizontalAlignment="Left" VerticalAlignment="Center">
                                 <TextBlock Text="&#xE706;" Style="{StaticResource FluentIconStyle}" FontSize="14" Foreground="#FFD54F" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Button>
 
-                            <!-- Interactive Brightness Slider (Nằm chính giữa card) -->
+                            <!-- Interactive Brightness Slider (Nối liền mạch vào tâm của Thumb) -->
                             <Slider x:Name="SliderExpBrightness" Grid.Column="1" Minimum="0" Maximum="100" Value="70" Foreground="#FFD54F" Style="{StaticResource PillSliderStyle}" 
                                     VerticalAlignment="Center" Margin="4,0,4,0"
                                     ValueChanged="SliderExpBrightness_ValueChanged"/>
 
-                            <!-- Percent Text (Cân xứng với icon bên trái) -->
-                            <TextBlock x:Name="TxtExpBrightnessPercent" Grid.Column="2" Text="70%" Foreground="#FFD54F" FontWeight="Bold" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" Width="40" TextAlignment="Right"/>
+                            <!-- Percent Text -->
+                            <TextBlock x:Name="TxtExpBrightnessPercent" Grid.Column="2" Text="70%" Foreground="#FFD54F" FontWeight="Bold" FontSize="12" Width="36" TextAlignment="Right" VerticalAlignment="Center" Margin="4,0,0,0"/>
                         </Grid>
                     </Border>
 
-                    <!-- Row 3: Bottom Switch Bar / Page Indicator (Căn chính giữa) -->
-                    <Grid Grid.Row="3" Margin="4,2,4,0">
-                        <!-- Clickable Switch Capsule: Tab 1 Active [●  ○] (Nhấn để chuyển sang Media Player) -->
+                    <!-- Row 3: Quick Action Tiles (4 Nút tác vụ nhanh: Audio, Awake, Snip, Dark) -->
+                    <Grid Grid.Row="3" Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 1. Audio Output Switcher (Click để mở danh sách chọn Loa / Tai nghe / Màn hình) -->
+                        <Button x:Name="BtnQuickAudio" Grid.Column="0" Style="{StaticResource QuickActionTileStyle}" Click="BtnQuickAudio_Click" MouseRightButtonUp="BtnQuickAudio_MouseRightButtonUp">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock x:Name="TxtQuickAudioIcon" Text="&#xE767;" Style="{StaticResource FluentIconStyle}" FontSize="14" Foreground="#0A84FF" HorizontalAlignment="Center" Margin="0,0,0,2"/>
+                                <TextBlock x:Name="TxtQuickAudioName" Text="Loa" FontSize="10" FontWeight="SemiBold" Foreground="#FFFFFF" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="72"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- 2. Awake (Giữ máy luôn sáng) -->
+                        <Button x:Name="BtnQuickAwake" Grid.Column="2" Style="{StaticResource QuickActionTileStyle}" Click="BtnQuickAwake_Click">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock x:Name="TxtQuickAwakeIcon" Text="&#xEC32;" Style="{StaticResource FluentIconStyle}" FontSize="14" Foreground="#8E8E93" HorizontalAlignment="Center" Margin="0,0,0,2"/>
+                                <TextBlock x:Name="TxtQuickAwakeText" Text="Awake" FontSize="10" FontWeight="SemiBold" Foreground="#E0E0E0" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- 3. Screen Snip (Chụp màn hình) -->
+                        <Button x:Name="BtnQuickSnip" Grid.Column="4" Style="{StaticResource QuickActionTileStyle}" Click="BtnQuickSnip_Click">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock Text="&#xE777;" Style="{StaticResource FluentIconStyle}" FontSize="14" Foreground="#E0E0E0" HorizontalAlignment="Center" Margin="0,0,0,2"/>
+                                <TextBlock Text="Chụp ảnh" FontSize="10" FontWeight="SemiBold" Foreground="#E0E0E0" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- 4. Night / Dark Mode -->
+                        <Button x:Name="BtnQuickTheme" Grid.Column="6" Style="{StaticResource QuickActionTileStyle}" Click="BtnQuickTheme_Click" MouseRightButtonUp="BtnQuickTheme_MouseRightButtonUp">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock x:Name="TxtQuickThemeIcon" Text="&#xE708;" Style="{StaticResource FluentIconStyle}" FontSize="14" Foreground="#A78BFA" HorizontalAlignment="Center" Margin="0,0,0,2"/>
+                                <TextBlock x:Name="TxtQuickThemeText" Text="Dark" FontSize="10" FontWeight="SemiBold" Foreground="#E0E0E0" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <!-- Row 4: Bottom Switch Bar / Page Indicator (Trang 1: Media • | Trang 2: Control Center ▬) -->
+                    <Grid Grid.Row="4" Margin="4,0,4,0" VerticalAlignment="Center">
                         <Border x:Name="ExpHintFooter" 
                                 Height="18" 
                                 Background="#18181B" 
                                 BorderBrush="#2C2C30" 
                                 BorderThickness="1" 
                                 CornerRadius="9" 
-                                Padding="12,0,12,0"
+                                Padding="10,0,10,0"
                                 HorizontalAlignment="Center" 
                                 VerticalAlignment="Center" 
-                                Margin="0,2,0,0"
                                 Cursor="Hand" 
-                                ToolTip="Nhấn để chuyển sang Trình phát nhạc (hoặc Vuốt / Shift+Cuộn)" 
+                                ToolTip="Click để chuyển sang Trình phát nhạc (hoặc Shift + Cuộn chuột)"
                                 MouseLeftButtonUp="BtnSwitchToMedia_Click">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border Width="6" Height="4" CornerRadius="2" Background="#545458" Margin="2,0,2,0"/>
                                 <Border Width="16" Height="4" CornerRadius="2" Background="#FFFFFF" Margin="2,0,2,0"/>
-                                <Border Width="5" Height="4" CornerRadius="2" Background="#545458" Margin="2,0,2,0"/>
                             </StackPanel>
                         </Border>
 
@@ -552,7 +706,10 @@
                 </Grid>
 
                 <!-- 4. EXPANDED MEDIA VIEW (Detailed player with Live Lyrics) -->
-                <Grid x:Name="ExpandedMediaView" Visibility="Collapsed" Margin="22,12,22,10">
+                <Grid x:Name="ExpandedMediaView" Visibility="Collapsed" Margin="22,12,22,10" RenderTransformOrigin="0.5,0.5">
+                    <Grid.RenderTransform>
+                        <TranslateTransform x:Name="MediaTranslate" X="0" Y="0"/>
+                    </Grid.RenderTransform>
                     <Grid.RowDefinitions>
                         <!-- Row 0: Hai cột chính (Lyrics bên trái, Thông tin & Controls bên phải) -->
                         <RowDefinition Height="*"/>
@@ -699,20 +856,20 @@
 
                     <!-- Row 1: Bottom Switch Bar (Nằm gọn ở đáy, căn chính giữa, tách biệt tuyệt đối) -->
                     <Grid Grid.Row="1" VerticalAlignment="Center">
-                        <Border Height="16" 
+                        <Border Height="18"
                                 Background="#18181B" 
                                 BorderBrush="#2C2C30" 
                                 BorderThickness="1" 
-                                CornerRadius="8" 
-                                Padding="12,0,12,0" 
+                                CornerRadius="9"
+                                Padding="10,0,10,0"
                                 HorizontalAlignment="Center" 
                                 VerticalAlignment="Center" 
                                 Cursor="Hand" 
-                                ToolTip="Nhấn để chuyển sang Trung tâm điều khiển (hoặc Vuốt / Shift+Cuộn)" 
+                                ToolTip="Click để chuyển sang Trung tâm điều khiển (hoặc Shift + Cuộn chuột)"
                                 MouseLeftButtonUp="BtnSwitchToControlCenter_Click">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Border Width="5" Height="4" CornerRadius="2" Background="#545458" Margin="2,0,2,0"/>
                                 <Border Width="16" Height="4" CornerRadius="2" Background="#1DB954" Margin="2,0,2,0"/>
+                                <Border Width="6" Height="4" CornerRadius="2" Background="#545458" Margin="2,0,2,0"/>
                             </StackPanel>
                         </Border>
                     </Grid>

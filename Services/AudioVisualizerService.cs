@@ -33,8 +33,11 @@ namespace DynamicIsland.Services
         private readonly float[] _hannWindow = new float[FFT_SIZE];
         private readonly Complex[] _fftBuffer = new Complex[FFT_SIZE];
 
-        // Dữ liệu mục tiêu và làm mượt
-        private readonly float[] _rawBandTargets = new float[4];
+        // Dữ liệu mục tiêu dạng volatile (Lock-Free giữa Audio Thread và UI Thread)
+        private volatile float _targetB1 = 0f;
+        private volatile float _targetB2 = 0f;
+        private volatile float _targetB3 = 0f;
+        private volatile float _targetB4 = 0f;
         private readonly float[] _smoothedBars = new float[4];
         private readonly object _audioLock = new();
 
@@ -166,10 +169,19 @@ namespace DynamicIsland.Services
                 _isCapturing = true;
                 _lastAudioActivity = DateTime.UtcNow;
             }
+            catch (COMException comEx)
+            {
+                System.Diagnostics.Debug.WriteLine($"Init WasapiLoopbackCapture COMException: {comEx.Message} (0x{comEx.ErrorCode:X8})");
+                _isCapturing = false;
+                try { _capture?.Dispose(); } catch { }
+                _capture = null;
+            }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Init WasapiLoopbackCapture failed: {ex.Message}");
                 _isCapturing = false;
+                try { _capture?.Dispose(); } catch { }
+                _capture = null;
             }
         }
 
@@ -182,7 +194,6 @@ namespace DynamicIsland.Services
                     _capture.DataAvailable -= OnDataAvailable;
                     _capture.RecordingStopped -= OnRecordingStopped;
                     _capture.StopRecording();
-                    _capture.Dispose();
                 }
                 catch (Exception ex)
                 {
@@ -190,6 +201,7 @@ namespace DynamicIsland.Services
                 }
                 finally
                 {
+                    try { _capture.Dispose(); } catch { }
                     _capture = null;
                     _isCapturing = false;
                 }
@@ -199,75 +211,101 @@ namespace DynamicIsland.Services
         private void OnRecordingStopped(object? sender, StoppedEventArgs e)
         {
             _isCapturing = false;
+            if (e.Exception != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"RecordingStopped with exception: {e.Exception.Message}");
+                // Khi thiết bị âm thanh bị rút hoặc invalid (AUDCLNT_E_DEVICE_INVALIDATED),
+                // tự động lên lịch phục hồi sau 1.5 giây mà không làm sập ứng dụng
+                if (_isEnabled && !_isDisposed)
+                {
+                    System.Threading.Tasks.Task.Run(async () =>
+                    {
+                        await System.Threading.Tasks.Task.Delay(1500);
+                        if (_isEnabled && !_isDisposed && !_isCapturing)
+                        {
+                            RestartCapture();
+                        }
+                    });
+                }
+            }
         }
 
         /// <summary>
         /// Xử lý buffer âm thanh thực tế từ hệ thống.
         /// Tối ưu 100% Zero-GC Allocation: Không dùng từ khóa 'new' trong phương thức này.
+        /// Bọc try-catch an toàn để phòng tránh ngoại lệ bất ngờ từ thiết bị phần cứng.
         /// </summary>
         private void OnDataAvailable(object? sender, WaveInEventArgs e)
         {
             if (e.BytesRecorded == 0 || !_isEnabled) return;
 
-            var format = _capture?.WaveFormat;
-            if (format == null) return;
-
-            int channels = format.Channels;
-            int sampleRate = format.SampleRate;
-            if (channels <= 0 || sampleRate <= 0) return;
-
-            // Xử lý chuẩn IEEE Float 32-bit (Phổ biến nhất trên Windows 10/11 WASAPI Loopback)
-            if (format.Encoding == WaveFormatEncoding.IeeeFloat && format.BitsPerSample == 32)
+            try
             {
-                ReadOnlySpan<float> floatSpan = MemoryMarshal.Cast<byte, float>(e.Buffer.AsSpan(0, e.BytesRecorded));
-                int frameCount = floatSpan.Length / channels;
+                var format = _capture?.WaveFormat;
+                if (format == null) return;
 
-                for (int i = 0; i < frameCount; i++)
+                int channels = format.Channels;
+                int sampleRate = format.SampleRate;
+                if (channels <= 0 || sampleRate <= 0) return;
+
+                // Xử lý chuẩn IEEE Float 32-bit (Phổ biến nhất trên Windows 10/11 WASAPI Loopback)
+                if (format.Encoding == WaveFormatEncoding.IeeeFloat && format.BitsPerSample == 32)
                 {
-                    float mono = 0f;
-                    int baseIndex = i * channels;
-                    for (int c = 0; c < channels; c++)
-                    {
-                        mono += floatSpan[baseIndex + c];
-                    }
-                    mono /= channels;
+                    ReadOnlySpan<float> floatSpan = MemoryMarshal.Cast<byte, float>(e.Buffer.AsSpan(0, e.BytesRecorded));
+                    int frameCount = floatSpan.Length / channels;
 
-                    _sampleRingBuffer[_sampleRingIndex++] = mono;
-                    if (_sampleRingIndex >= FFT_SIZE)
+                    for (int i = 0; i < frameCount; i++)
                     {
-                        _sampleRingIndex = 0;
-                        ProcessFft(sampleRate);
+                        float mono = 0f;
+                        int baseIndex = i * channels;
+                        for (int c = 0; c < channels; c++)
+                        {
+                            mono += floatSpan[baseIndex + c];
+                        }
+                        mono /= channels;
+
+                        _sampleRingBuffer[_sampleRingIndex++] = mono;
+                        if (_sampleRingIndex >= FFT_SIZE)
+                        {
+                            _sampleRingIndex = 0;
+                            ProcessFft(sampleRate);
+                        }
+                    }
+                }
+                // Dự phòng cho trường hợp thiết bị báo định dạng 16-bit PCM
+                else if (format.BitsPerSample == 16)
+                {
+                    ReadOnlySpan<short> shortSpan = MemoryMarshal.Cast<byte, short>(e.Buffer.AsSpan(0, e.BytesRecorded));
+                    int frameCount = shortSpan.Length / channels;
+
+                    for (int i = 0; i < frameCount; i++)
+                    {
+                        float mono = 0f;
+                        int baseIndex = i * channels;
+                        for (int c = 0; c < channels; c++)
+                        {
+                            mono += shortSpan[baseIndex + c] / 32768.0f;
+                        }
+                        mono /= channels;
+
+                        _sampleRingBuffer[_sampleRingIndex++] = mono;
+                        if (_sampleRingIndex >= FFT_SIZE)
+                        {
+                            _sampleRingIndex = 0;
+                            ProcessFft(sampleRate);
+                        }
                     }
                 }
             }
-            // Dự phòng cho trường hợp thiết bị báo định dạng 16-bit PCM
-            else if (format.BitsPerSample == 16)
+            catch (Exception ex)
             {
-                ReadOnlySpan<short> shortSpan = MemoryMarshal.Cast<byte, short>(e.Buffer.AsSpan(0, e.BytesRecorded));
-                int frameCount = shortSpan.Length / channels;
-
-                for (int i = 0; i < frameCount; i++)
-                {
-                    float mono = 0f;
-                    int baseIndex = i * channels;
-                    for (int c = 0; c < channels; c++)
-                    {
-                        mono += shortSpan[baseIndex + c] / 32768.0f;
-                    }
-                    mono /= channels;
-
-                    _sampleRingBuffer[_sampleRingIndex++] = mono;
-                    if (_sampleRingIndex >= FFT_SIZE)
-                    {
-                        _sampleRingIndex = 0;
-                        ProcessFft(sampleRate);
-                    }
-                }
+                System.Diagnostics.Debug.WriteLine($"OnDataAvailable error: {ex.Message}");
             }
         }
 
         /// <summary>
         /// Phân tích FFT và chia 4 dải tần số bất đối xứng (Asymmetric Frequency Mapping)
+        /// Ghi vào các biến volatile (Lock-Free) giúp Audio Thread không bao giờ bị nghẽn
         /// </summary>
         private void ProcessFft(int sampleRate)
         {
@@ -300,18 +338,15 @@ namespace DynamicIsland.Services
             // Cột 4: 2500Hz – 10000Hz (Hi-Hat, Snare & Presence)
             float b4 = CalculateBandMagnitude(BinOf(2500), BinOf(10000), BOOST_TREBLE);
 
-            lock (_audioLock)
-            {
-                _rawBandTargets[0] = b1;
-                _rawBandTargets[1] = b2;
-                _rawBandTargets[2] = b3;
-                _rawBandTargets[3] = b4;
+            _targetB1 = b1;
+            _targetB2 = b2;
+            _targetB3 = b3;
+            _targetB4 = b4;
 
-                // Nếu có tín hiệu âm thanh phát ra
-                if (b1 > 0.01f || b2 > 0.01f || b3 > 0.01f || b4 > 0.01f)
-                {
-                    _lastAudioActivity = DateTime.UtcNow;
-                }
+            // Nếu có tín hiệu âm thanh phát ra
+            if (b1 > 0.01f || b2 > 0.01f || b3 > 0.01f || b4 > 0.01f)
+            {
+                _lastAudioActivity = DateTime.UtcNow;
             }
         }
 
@@ -337,26 +372,24 @@ namespace DynamicIsland.Services
 
         /// <summary>
         /// Vòng lặp vật lý làm mượt Attack & Gravity Decay chạy trên UI Dispatcher
+        /// Đọc các biến volatile không cần lock để tối đa hóa hiệu năng
         /// </summary>
         private void UiTimer_Tick(object? sender, EventArgs e)
         {
             float target1, target2, target3, target4;
 
-            lock (_audioLock)
+            // Kiểm tra trạng thái im lặng (Silence / Idle Detection):
+            // Nếu không có âm thanh sau 3 giây, kéo mục tiêu về 0
+            if ((DateTime.UtcNow - _lastAudioActivity).TotalSeconds > 3.0)
             {
-                // Kiểm tra trạng thái im lặng (Silence / Idle Detection):
-                // Nếu không có âm thanh sau 3 giây, kéo mục tiêu về 0
-                if ((DateTime.UtcNow - _lastAudioActivity).TotalSeconds > 3.0)
-                {
-                    target1 = target2 = target3 = target4 = 0f;
-                }
-                else
-                {
-                    target1 = _rawBandTargets[0];
-                    target2 = _rawBandTargets[1];
-                    target3 = _rawBandTargets[2];
-                    target4 = _rawBandTargets[3];
-                }
+                target1 = target2 = target3 = target4 = 0f;
+            }
+            else
+            {
+                target1 = _targetB1;
+                target2 = _targetB2;
+                target3 = _targetB3;
+                target4 = _targetB4;
             }
 
             // Vật lý chuyển động:
@@ -396,13 +429,10 @@ namespace DynamicIsland.Services
 
         private void ResetBars()
         {
-            lock (_audioLock)
-            {
-                _rawBandTargets[0] = 0f;
-                _rawBandTargets[1] = 0f;
-                _rawBandTargets[2] = 0f;
-                _rawBandTargets[3] = 0f;
-            }
+            _targetB1 = 0f;
+            _targetB2 = 0f;
+            _targetB3 = 0f;
+            _targetB4 = 0f;
 
             _smoothedBars[0] = 0f;
             _smoothedBars[1] = 0f;
@@ -416,11 +446,25 @@ namespace DynamicIsland.Services
 
         public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId)
         {
-            // Khi thiết bị phát âm thanh mặc định thay đổi
+            // Khi thiết bị phát âm thanh mặc định thay đổi, khởi động lại capture trên Background Task
             if (flow == DataFlow.Render && (role == Role.Multimedia || role == Role.Console))
             {
-                System.Diagnostics.Debug.WriteLine("Default audio render device changed. Restarting capture...");
-                RestartCapture();
+                System.Diagnostics.Debug.WriteLine("Default audio render device changed. Restarting capture asynchronously...");
+                System.Threading.Tasks.Task.Run(async () =>
+                {
+                    try
+                    {
+                        await System.Threading.Tasks.Task.Delay(350); // Chờ Windows định tuyến xong
+                        if (_isEnabled && !_isDisposed)
+                        {
+                            RestartCapture();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"AudioVisualizer OnDefaultDeviceChanged error: {ex.Message}");
+                    }
+                });
             }
         }
 

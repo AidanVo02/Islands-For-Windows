@@ -115,5 +115,33 @@ namespace DynamicIsland.Services
         {
             return (GetAsyncKeyState(vKey) & 0x8000) != 0;
         }
+
+        #region System Awake (SetThreadExecutionState)
+        [Flags]
+        public enum EXECUTION_STATE : uint
+        {
+            ES_AWAYMODE_REQUIRED = 0x00000040,
+            ES_CONTINUOUS = 0x80000000,
+            ES_DISPLAY_REQUIRED = 0x00000002,
+            ES_SYSTEM_REQUIRED = 0x00000001
+        }
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        public static extern EXECUTION_STATE SetThreadExecutionState(EXECUTION_STATE esFlags);
+        #endregion
+
+        #region Theme Change Notification
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
+
+        public static void NotifyThemeChanged()
+        {
+            try
+            {
+                SendMessageTimeout(new IntPtr(0xffff), 0x001A /* WM_SETTINGCHANGE */, UIntPtr.Zero, "ImmersiveColorSet", 0x0002 /* SMTO_ABORTIFHUNG */, 200, out _);
+            }
+            catch { }
+        }
+        #endregion
     }
 }
